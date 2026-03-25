@@ -9,4 +9,9 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(react-query|@tanstack/react-query)/)',
   ],
+  transform: {
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: 'tsconfig.json',
+    }],
+  },
 }

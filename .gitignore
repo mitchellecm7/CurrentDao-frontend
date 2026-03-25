@@ -2,6 +2,10 @@
 /node_modules
 /.pnp
 .pnp.js
+package-lock.json
+
+# testing
+/coverage
 
 # next.js
 /.next/
@@ -17,3 +21,16 @@
 # env files
 .env*.local
 
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+test-output.txt
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
