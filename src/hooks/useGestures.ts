@@ -1,10 +1,21 @@
+/**
+ * Enhanced Gesture Hook with 60fps Performance
+ * Integrates with gesture services and provides optimized gesture handling
+ */
+
 'use client'
 
-import { useState, useCallback, useRef, TouchEvent, MouseEvent } from 'react'
+import { useState, useCallback, useRef, useEffect, TouchEvent, MouseEvent } from 'react'
+import { GestureRecognitionService, GestureEvent } from '../services/gestures/gesture-recognition'
+import { HapticFeedbackService } from '../services/gestures/haptic-feedback'
+import { GestureAccessibilityService } from '../utils/gestures/accessibility'
 
 interface GestureOptions {
   threshold?: number
   timeThreshold?: number
+  enabled?: boolean
+  hapticFeedback?: boolean
+  voiceAnnouncements?: boolean
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
   onSwipeUp?: () => void
@@ -13,6 +24,8 @@ interface GestureOptions {
   onDoubleTap?: () => void
   onLongPress?: () => void
   onPinch?: (scale: number) => void
+  onPull?: (distance: number) => void
+  onGesture?: (gesture: GestureEvent) => void
 }
 
 interface TouchPoint {
@@ -21,10 +34,23 @@ interface TouchPoint {
   time: number
 }
 
+interface GestureState {
+  isActive: boolean
+  currentGesture: string | null
+  performance: {
+    fps: number
+    responseTime: number
+    gestureCount: number
+  }
+}
+
 export function useGestures(options: GestureOptions = {}) {
   const {
     threshold = 50,
     timeThreshold = 300,
+    enabled = true,
+    hapticFeedback = true,
+    voiceAnnouncements = false,
     onSwipeLeft,
     onSwipeRight,
     onSwipeUp,
@@ -32,164 +58,287 @@ export function useGestures(options: GestureOptions = {}) {
     onTap,
     onDoubleTap,
     onLongPress,
-    onPinch
+    onPinch,
+    onPull,
+    onGesture
   } = options
 
-  const [touchStart, setTouchStart] = useState<TouchPoint | null>(null)
-  const [touchEnd, setTouchEnd] = useState<TouchPoint | null>(null)
-  const [lastTap, setLastTap] = useState<number>(0)
-  const [isLongPressing, setIsLongPressing] = useState(false)
-  const [initialDistance, setInitialDistance] = useState<number>(0)
+  // State management
+  const [gestureState, setGestureState] = useState<GestureState>({
+    isActive: false,
+    currentGesture: null,
+    performance: {
+      fps: 60,
+      responseTime: 0,
+      gestureCount: 0
+    }
+  })
+
+  // Refs for performance optimization
+  const gestureService = useRef(GestureRecognitionService.getInstance())
+  const hapticService = useRef(HapticFeedbackService.getInstance())
+  const accessibilityService = useRef(GestureAccessibilityService.getInstance())
+  const cleanupGesture = useRef<(() => void) | null>(null)
+  const elementRef = useRef<HTMLElement | null>(null)
   
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const isSwiping = useRef(false)
-  const isPinching = useRef(false)
+  // Performance tracking
+  const frameCount = useRef(0)
+  const lastFrameTime = useRef(performance.now())
+  const gestureStartTime = useRef(0)
+  const animationFrameId = useRef<number | null>(null)
 
-  const getDistance = (touch1: Touch, touch2: Touch): number => {
-    const dx = touch1.clientX - touch2.clientX
-    const dy = touch1.clientY - touch2.clientY
-    return Math.sqrt(dx * dx + dy * dy)
-  }
+  // Update accessibility settings
+  useEffect(() => {
+    if (voiceAnnouncements) {
+      accessibilityService.current.updateSettings({ voiceAnnouncements: true })
+    }
+    if (hapticFeedback) {
+      accessibilityService.current.updateSettings({ hapticFeedback: true })
+    }
+  }, [voiceAnnouncements, hapticFeedback])
 
-  const handleTouchStart = useCallback((e: TouchEvent) => {
-    const touch = e.touches[0]
-    const now = Date.now()
+  // Performance monitoring
+  const updatePerformance = useCallback(() => {
+    const now = performance.now()
+    const delta = now - lastFrameTime.current
+    const fps = Math.round(1000 / delta)
     
-    setTouchEnd(null)
-    setTouchStart({
-      x: touch.clientX,
-      y: touch.clientY,
-      time: now
-    })
-
-    isSwiping.current = true
-
-    // Handle double tap
-    if (onDoubleTap && now - lastTap < 300) {
-      onDoubleTap()
-      setLastTap(0)
-      return
-    }
-    setLastTap(now)
-
-    // Handle long press
-    if (onLongPress) {
-      setIsLongPressing(false)
-      longPressTimerRef.current = setTimeout(() => {
-        setIsLongPressing(true)
-        onLongPress()
-      }, 500)
-    }
-
-    // Handle pinch gesture
-    if (e.touches.length === 2 && onPinch) {
-      isPinching.current = true
-      setInitialDistance(getDistance(e.touches[0], e.touches[1]))
-    }
-  }, [onDoubleTap, onLongPress, onPinch, lastTap])
-
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isSwiping.current && !isPinching.current) return
-
-    // Handle pinch gesture
-    if (e.touches.length === 2 && isPinching.current && onPinch) {
-      const currentDistance = getDistance(e.touches[0], e.touches[1])
-      const scale = currentDistance / initialDistance
-      onPinch(scale)
-      return
-    }
-
-    // Handle swipe gesture
-    if (e.touches.length === 1 && isSwiping.current) {
-      const touch = e.touches[0]
-      setTouchEnd({
-        x: touch.clientX,
-        y: touch.clientY,
-        time: Date.now()
-      })
-
-      // Cancel long press if moved
-      if (longPressTimerRef.current) {
-        const deltaX = Math.abs(touch.clientX - (touchStart?.x || 0))
-        const deltaY = Math.abs(touch.clientY - (touchStart?.y || 0))
-        if (deltaX > 10 || deltaY > 10) {
-          clearTimeout(longPressTimerRef.current)
-          longPressTimerRef.current = null
+    frameCount.current++
+    lastFrameTime.current = now
+    
+    // Update performance state every 60 frames
+    if (frameCount.current % 60 === 0) {
+      setGestureState(prev => ({
+        ...prev,
+        performance: {
+          fps,
+          responseTime: prev.performance.responseTime,
+          gestureCount: prev.performance.gestureCount
         }
-      }
-    }
-  }, [touchStart, initialDistance, onPinch])
-
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    if (!touchStart || !touchEnd) {
-      resetState()
-      return
-    }
-
-    const deltaX = touchEnd.x - touchStart.x
-    const deltaY = touchEnd.y - touchStart.y
-    const deltaTime = touchEnd.time - touchStart.time
-    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY)
-
-    // Clear long press timer
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-
-    // Handle swipe gestures
-    if (deltaTime < timeThreshold && !isLongPressing) {
-      if (isHorizontalSwipe) {
-        if (Math.abs(deltaX) >= threshold) {
-          if (deltaX > 0) {
-            onSwipeRight?.()
-          } else {
-            onSwipeLeft?.()
-          }
-        } else if (onTap && Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
-          onTap()
-        }
-      } else {
-        if (Math.abs(deltaY) >= threshold) {
-          if (deltaY > 0) {
-            onSwipeDown?.()
-          } else {
-            onSwipeUp?.()
-          }
-        } else if (onTap && Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
-          onTap()
-        }
-      }
-    }
-
-    resetState()
-  }, [touchStart, touchEnd, threshold, timeThreshold, isLongPressing, onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown, onTap])
-
-  const resetState = useCallback(() => {
-    setTouchStart(null)
-    setTouchEnd(null)
-    setIsLongPressing(false)
-    isSwiping.current = false
-    isPinching.current = false
-    setInitialDistance(0)
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
+      }))
     }
   }, [])
 
-  const swipeHandlers = {
-    onTouchStart: handleTouchStart,
-    onTouchMove: handleTouchMove,
-    onTouchEnd: handleTouchEnd,
-    onTouchCancel: resetState
+  // Handle gesture events with performance tracking
+  const handleGesture = useCallback(async (gesture: GestureEvent) => {
+    if (!enabled) return
+
+    const responseTime = Date.now() - gestureStartTime.current
+    gestureStartTime.current = Date.now()
+
+    // Update performance metrics
+    setGestureState(prev => ({
+      ...prev,
+      isActive: true,
+      currentGesture: gesture.type,
+      performance: {
+        ...prev.performance,
+        responseTime,
+        gestureCount: prev.performance.gestureCount + 1
+      }
+    }))
+
+    // Provide haptic feedback
+    if (hapticFeedback) {
+      switch (gesture.type) {
+        case 'swipe':
+          await hapticService.current.onSwipeGesture(gesture.direction!)
+          break
+        case 'pinch':
+          await hapticService.current.onPinchGesture(gesture.scale || 1)
+          break
+        case 'tap':
+          await hapticService.current.onTapGesture()
+          break
+        case 'longpress':
+          await hapticService.current.onLongPressGesture()
+          break
+        case 'pull':
+          await hapticService.current.onPullToRefresh()
+          break
+      }
+    }
+
+    // Voice announcements
+    if (voiceAnnouncements) {
+      accessibilityService.current.announceGesture(gesture.type, true)
+    }
+
+    // Execute specific gesture handlers
+    switch (gesture.type) {
+      case 'swipe':
+        switch (gesture.direction) {
+          case 'left':
+            onSwipeLeft?.()
+            break
+          case 'right':
+            onSwipeRight?.()
+            break
+          case 'up':
+            onSwipeUp?.()
+            break
+          case 'down':
+            onSwipeDown?.()
+            break
+        }
+        break
+      case 'pinch':
+        onPinch?.(gesture.scale || 1)
+        break
+      case 'tap':
+        onTap?.()
+        break
+      case 'longpress':
+        onLongPress?.()
+        break
+      case 'pull':
+        onPull?.(gesture.distance || 0)
+        break
+    }
+
+    // Call general gesture handler
+    onGesture?.(gesture)
+
+    // Reset gesture state after delay
+    setTimeout(() => {
+      setGestureState(prev => ({
+        ...prev,
+        isActive: false,
+        currentGesture: null
+      }))
+    }, 100)
+  }, [enabled, hapticFeedback, voiceAnnouncements, onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown, onTap, onDoubleTap, onLongPress, onPinch, onPull, onGesture])
+
+  // Setup gesture tracking on element
+  const setupGestureTracking = useCallback((element: HTMLElement) => {
+    if (!enabled || !element) return
+
+    elementRef.current = element
+    cleanupGesture.current = gestureService.current.startTracking(element, handleGesture)
+
+    // Start performance monitoring
+    const monitorPerformance = () => {
+      updatePerformance()
+      animationFrameId.current = requestAnimationFrame(monitorPerformance)
+    }
+    animationFrameId.current = requestAnimationFrame(monitorPerformance)
+  }, [enabled, handleGesture, updatePerformance])
+
+  // Cleanup gesture tracking
+  const cleanup = useCallback(() => {
+    if (cleanupGesture.current) {
+      cleanupGesture.current()
+      cleanupGesture.current = null
+    }
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current)
+      animationFrameId.current = null
+    }
+    elementRef.current = null
+  }, [])
+
+  // Enhanced gesture handlers with RAF optimization
+  const gestureHandlers = {
+    onTouchStart: useCallback((e: TouchEvent) => {
+      if (!enabled) return
+      gestureStartTime.current = Date.now()
+    }, [enabled]),
+    
+    onTouchMove: useCallback((e: TouchEvent) => {
+      if (!enabled) return
+      // RAF optimization handled by gesture service
+    }, [enabled]),
+    
+    onTouchEnd: useCallback((e: TouchEvent) => {
+      if (!enabled) return
+      // RAF optimization handled by gesture service
+    }, [enabled]),
+    
+    onTouchCancel: useCallback(() => {
+      if (!enabled) return
+      setGestureState(prev => ({
+        ...prev,
+        isActive: false,
+        currentGesture: null
+      }))
+    }, [enabled])
   }
 
+  // Keyboard gesture alternatives
+  const keyboardHandlers = {
+    onKeyDown: useCallback(async (e: KeyboardEvent) => {
+      if (!enabled) return
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          await handleGesture({ type: 'swipe', direction: 'left', touchPoints: [], timestamp: Date.now() })
+          break
+        case 'ArrowRight':
+          await handleGesture({ type: 'swipe', direction: 'right', touchPoints: [], timestamp: Date.now() })
+          break
+        case 'ArrowUp':
+          await handleGesture({ type: 'swipe', direction: 'up', touchPoints: [], timestamp: Date.now() })
+          break
+        case 'ArrowDown':
+          await handleGesture({ type: 'swipe', direction: 'down', touchPoints: [], timestamp: Date.now() })
+          break
+        case '+':
+        case '=':
+          await handleGesture({ type: 'pinch', scale: 1.2, touchPoints: [], timestamp: Date.now() })
+          break
+        case '-':
+        case '_':
+          await handleGesture({ type: 'pinch', scale: 0.8, touchPoints: [], timestamp: Date.now() })
+          break
+        case 'Enter':
+        case ' ':
+          await handleGesture({ type: 'tap', touchPoints: [], timestamp: Date.now() })
+          break
+        case 'F5':
+          e.preventDefault()
+          await handleGesture({ type: 'pull', distance: 100, touchPoints: [], timestamp: Date.now() })
+          break
+      }
+    }, [enabled, handleGesture])
+  }
+
+  // Setup keyboard listeners
+  useEffect(() => {
+    if (enabled) {
+      document.addEventListener('keydown', keyboardHandlers.onKeyDown)
+      return () => {
+        document.removeEventListener('keydown', keyboardHandlers.onKeyDown)
+      }
+    }
+  }, [enabled, keyboardHandlers])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanup
+  }, [cleanup])
+
   return {
-    swipeHandlers,
-    resetState,
-    isSwiping: isSwiping.current,
-    isLongPressing,
-    isPinching: isPinching.current
+    // Gesture state
+    gestureState,
+    
+    // Event handlers
+    gestureHandlers,
+    keyboardHandlers,
+    
+    // Setup methods
+    setupGestureTracking,
+    cleanup,
+    
+    // Performance metrics
+    getPerformanceMetrics: () => gestureState.performance,
+    
+    // Utility methods
+    isGestureActive: () => gestureState.isActive,
+    getCurrentGesture: () => gestureState.currentGesture,
+    
+    // Service access
+    gestureService: gestureService.current,
+    hapticService: hapticService.current,
+    accessibilityService: accessibilityService.current
   }
 }
