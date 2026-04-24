@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Menu, X, Wallet } from 'lucide-react'
+import { Zap, Menu, X, Wallet, Globe } from 'lucide-react'
+import { ThemeToggle } from './theme/ThemeToggle'
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -23,11 +24,25 @@ export function Navbar() {
             <a href="#trading" className="text-gray-600 hover:text-gray-900 transition-colors">
               Energy Trading
             </a>
+            <a href="#mobile-wallets" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Mobile Wallets
+            </a>
             <a href="#dao" className="text-gray-600 hover:text-gray-900 transition-colors">
               DAO Governance
             </a>
+            <a href="/cross-border" className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1">
+              <Globe className="w-4 h-4" />
+              Cross-Border
+            </a>
             <a href="#portfolio" className="text-gray-600 hover:text-gray-900 transition-colors">
               Portfolio
+            </a>
+            <a href="/pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Dynamic Pricing
+            </a>
+            <a href="/location" className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1">
+              <Zap className="w-4 h-4 text-green-600" />
+              Local Trading
             </a>
             <a href="#docs" className="text-gray-600 hover:text-gray-900 transition-colors">
               Documentation
@@ -36,6 +51,7 @@ export function Navbar() {
 
           {/* Wallet Connect & Mobile Menu */}
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <button className="hidden sm:flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
               <Wallet className="w-4 h-4" />
               Connect Wallet
@@ -62,11 +78,25 @@ export function Navbar() {
               <a href="#trading" className="text-gray-600 hover:text-gray-900 transition-colors">
                 Energy Trading
               </a>
+              <a href="#mobile-wallets" className="text-gray-600 hover:text-gray-900 transition-colors">
+                Mobile Wallets
+              </a>
               <a href="#dao" className="text-gray-600 hover:text-gray-900 transition-colors">
                 DAO Governance
               </a>
+              <a href="/cross-border" className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1">
+                <Globe className="w-4 h-4" />
+                Cross-Border
+              </a>
               <a href="#portfolio" className="text-gray-600 hover:text-gray-900 transition-colors">
                 Portfolio
+              </a>
+              <a href="/pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
+                Dynamic Pricing
+              </a>
+              <a href="/location" className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1">
+                <Zap className="w-4 h-4 text-green-600" />
+                Local Trading
               </a>
               <a href="#docs" className="text-gray-600 hover:text-gray-900 transition-colors">
                 Documentation

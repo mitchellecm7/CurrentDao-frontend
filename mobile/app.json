@@ -1,0 +1,8 @@
+{
+  "name": "CurrentDaoMobile",
+  "displayName": "CurrentDao Mobile",
+  "expo": {
+    "name": "CurrentDao Mobile",
+    "slug": "currentdao-mobile"
+  }
+}
