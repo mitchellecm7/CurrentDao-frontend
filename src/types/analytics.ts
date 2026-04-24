@@ -3,6 +3,161 @@
 // Energy Types
 export type EnergyType = 'solar' | 'wind' | 'hydro' | 'nuclear' | 'natural_gas' | 'coal' | 'biomass';
 
+// Behavior Analytics Types
+
+// Heatmap Data Types
+export interface HeatmapPoint {
+  x: number;
+  y: number;
+  intensity: number;
+  type: 'click' | 'scroll' | 'hover' | 'movement';
+  timestamp: string;
+  element?: string;
+}
+
+export interface HeatmapData {
+  points: HeatmapPoint[];
+  viewport: {
+    width: number;
+    height: number;
+  };
+  metadata: {
+    url: string;
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    totalSessions: number;
+    totalInteractions: number;
+  };
+}
+
+// Session Recording Types
+export interface SessionEvent {
+  id: string;
+  timestamp: number;
+  type: 'click' | 'scroll' | 'mousemove' | 'keypress' | 'focus' | 'blur' | 'resize' | 'visibilitychange' | 'error';
+  data: {
+    x?: number;
+    y?: number;
+    target?: string;
+    key?: string;
+    scrollX?: number;
+    scrollY?: number;
+    width?: number;
+    height?: number;
+    hidden?: boolean;
+    message?: string;
+    filename?: string;
+    lineno?: number;
+    colno?: number;
+    stack?: string;
+  };
+  viewport: {
+    width: number;
+    height: number;
+  };
+}
+
+export interface SessionRecording {
+  id: string;
+  sessionId: string;
+  userId?: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  events: SessionEvent[];
+  metadata: {
+    userAgent: string;
+    url: string;
+    referrer?: string;
+    screenResolution: string;
+    timezone: string;
+    consent: boolean;
+    anonymized: boolean;
+  };
+  stats: {
+    totalEvents: number;
+    clicks: number;
+    scrolls: number;
+    keypresses: number;
+    mouseMovements: number;
+    pageViews: number;
+    averageSessionTime: number;
+    bounceRate: number;
+  };
+}
+
+// User Flow Analysis Types
+export interface FlowStep {
+  id: string;
+  name: string;
+  path: string;
+  type: 'page' | 'action' | 'conversion' | 'exit';
+  users: number;
+  conversionRate: number;
+  avgTimeSpent: number;
+  dropoffRate: number;
+  previousStep?: string;
+  nextSteps: string[];
+}
+
+export interface UserFlow {
+  id: string;
+  name: string;
+  description: string;
+  steps: FlowStep[];
+  totalUsers: number;
+  completedUsers: number;
+  overallConversionRate: number;
+  avgFunnelTime: number;
+  dropoffPoints: string[];
+  entryPoints: string[];
+  exitPoints: string[];
+  createdAt: string;
+  lastUpdated: string;
+}
+
+// A/B Testing Types
+export interface ABTestVariant {
+  id: string;
+  name: string;
+  description: string;
+  trafficAllocation: number;
+  conversions: number;
+  visitors: number;
+  conversionRate: number;
+  revenue?: number;
+  avgOrderValue?: number;
+  isControl?: boolean;
+}
+
+export interface ABTest {
+  id: string;
+  name: string;
+  description: string;
+  hypothesis: string;
+  status: 'draft' | 'running' | 'paused' | 'completed' | 'archived';
+  startDate?: string;
+  endDate?: string;
+  targetMetric: 'conversion_rate' | 'revenue' | 'click_through_rate' | 'bounce_rate' | 'avg_session_duration';
+  confidenceLevel: number;
+  statisticalSignificance: number;
+  sampleSize: number;
+  minSampleSize: number;
+  variants: ABTestVariant[];
+  winner?: string;
+  createdAt: string;
+  lastUpdated: string;
+  trafficSplitType: 'equal' | 'manual' | 'weighted';
+  targetingCriteria: {
+    deviceTypes: string[];
+    browsers: string[];
+    locations: string[];
+    userSegments: string[];
+  };
+}
+
 // Time Intervals
 export type TimeInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w' | '1M';
 
