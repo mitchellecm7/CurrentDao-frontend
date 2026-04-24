@@ -535,51 +535,124 @@ export interface ChartSeries {
   type?: 'line' | 'bar' | 'area' | 'scatter';
 }
 
-// Export all types for easy importing
-export type {
-  // Core types
-  EnergyType,
-  TimeInterval,
-  MarketDataPoint,
-  MarketMetrics,
-  VolumeAnalysis,
-  PriceTrend,
-  SentimentData,
-  ComparativeAnalysis,
-  PredictiveAnalytics,
-  
-  // Dashboard types
-  DashboardConfig,
-  DashboardLayout,
-  WidgetConfig,
-  WidgetType,
-  
-  // Real-time types
-  RealtimeData,
-  MarketEvent,
-  
-  // API types
-  AnalyticsResponse,
-  HistoricalDataRequest,
-  AnalyticsRequest,
-  
-  // Component props
-  MarketOverviewProps,
-  VolumeAnalysisProps,
-  PriceTrendsProps,
-  SentimentIndicatorsProps,
-  PredictiveAnalyticsProps,
-  ComparativeAnalysisProps,
-  
-  // Hook types
-  MarketAnalyticsState,
-  MarketAnalyticsActions,
-  MarketAnalyticsContextType,
-  
-  // Utility types
-  TechnicalIndicator,
-  MarketAlert,
-  EnergyMarketStats,
-  ChartDataPoint,
-  ChartSeries,
-};
+// Advanced Analytics Types
+export type TimeRange = '1h' | '24h' | '7d' | '30d' | '90d' | '1y';
+
+export interface EnergyData {
+  energyMix: {
+    type: string;
+    value: number;
+    percentage: number;
+  }[];
+  totalProduction: number;
+  totalConsumption: number;
+  efficiency: number;
+  peakDemand: number;
+  averagePrice: number;
+}
+
+export interface ROIMetrics {
+  totalROI: number;
+  totalInvestment: number;
+  totalReturns: number;
+  monthlyChange: number;
+  yearlyChange: number;
+  paybackPeriod: number;
+  annualizedROI: number;
+  historicalROI: {
+    date: string;
+    roi: number;
+    investment: number;
+    returns: number;
+    cumulativeROI?: number;
+  }[];
+}
+
+export interface ConsumptionData {
+  totalConsumption: number;
+  efficiency: number;
+  hourlyPattern: {
+    hour: number;
+    consumption: number;
+  }[];
+  dailyPattern: {
+    day: string;
+    consumption: number;
+  }[];
+  monthlyPattern: {
+    month: string;
+    consumption: number;
+  }[];
+  byEnergyType: {
+    type: string;
+    consumption: number;
+    percentage: number;
+  }[];
+  peakHours: {
+    hour: number;
+    consumption: number;
+    frequency: number;
+  }[];
+}
+
+export interface CarbonData {
+  totalEmissions: number;
+  reductionRate: number;
+  emissionsBySource: {
+    source: string;
+    emissions: number;
+    percentage: number;
+  }[];
+  carbonCredits: {
+    earned: number;
+    used: number;
+    balance: number;
+  };
+  trends: {
+    date: string;
+    emissions: number;
+    reduction: number;
+  }[];
+  benchmarks: {
+    industry: number;
+    regional: number;
+    global: number;
+  };
+}
+
+export interface MarketBenchmark {
+  performance: number;
+  averagePrice: number;
+  marketShare: number;
+  volatility: number;
+  liquidity: number;
+  competitors: {
+    name: string;
+    performance: number;
+    marketShare: number;
+  }[];
+  trends: {
+    date: string;
+    price: number;
+    volume: number;
+    sentiment: number;
+  }[];
+}
+
+export interface PredictiveData {
+  pricePredictions: {
+    timestamp: string;
+    actualPrice?: number;
+    predictedPrice: number;
+    confidence: number;
+  }[];
+  volumePredictions: {
+    timestamp: string;
+    predictedVolume: number;
+    confidence: number;
+  }[];
+  accuracy: number;
+  modelType: string;
+  lastTrained: string;
+}
+
