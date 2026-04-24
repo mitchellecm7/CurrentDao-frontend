@@ -12,6 +12,8 @@ import { LocationFilterComponent, FilterSummary } from './components/maps/Locati
 import RegionalMarketComponent from './components/maps/RegionalMarket';
 import DistanceCalculatorComponent from './components/maps/DistanceCalculator';
 import HeatMapComponent from './components/maps/HeatMap';
+import { AdvancedSearch } from './components/search/AdvancedSearch';
+import { SearchableItem } from './types/search';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useMapIntegration } from './hooks/useMapIntegration';
 import { calculateRegionalMarketData } from './utils/mapHelpers';
@@ -142,6 +144,20 @@ const App: React.FC = () => {
     console.log('Distance calculation completed:', calculation);
   };
 
+  // Handle search result selection
+  const handleSearchResultClick = (item: SearchableItem) => {
+    console.log('Search result selected:', item);
+    // Could integrate with map, show details, or navigate to item
+    if (item.type === 'energy_trade' && item.metadata.coordinates) {
+      // Center map on energy trade location
+      updateViewport({
+        center: item.metadata.coordinates,
+        zoom: 10,
+      });
+      setActiveTab('map');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -184,6 +200,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
             {[
+              { key: 'search', label: 'Advanced Search', icon: '🔍' },
               { key: 'map', label: 'Interactive Map', icon: '🗺️' },
               { key: 'regional', label: 'Regional Markets', icon: '📊' },
               { key: 'distance', label: 'Distance Calculator', icon: '📏' },
@@ -246,6 +263,15 @@ const App: React.FC = () => {
 
           {/* Main Content Area */}
           <div className="lg:col-span-3">
+            {activeTab === 'search' && (
+              <AdvancedSearch
+                onResultClick={handleSearchResultClick}
+                placeholder="Search energy trades, DAO proposals, market data, and more..."
+                showFilters={true}
+                showSavedSearches={true}
+                showAnalytics={true}
+              />
+            )}
             {activeTab === 'map' && (
               <InteractiveMap
                 listings={listings}
