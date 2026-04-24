@@ -180,3 +180,204 @@ export interface AlbedoAPI {
   }) => Promise<{ tx_hash: string; network: string }>;
   stream: (params: { pubkey: string; callback: string }) => void;
 }
+
+// Multi-Wallet Management Types
+export interface MultiWallet {
+  id: string
+  name: string
+  type: WalletType
+  publicKey: string
+  network: 'mainnet' | 'testnet'
+  isActive: boolean
+  isDefault: boolean
+  createdAt: Date
+  lastUsedAt?: Date
+  balances: WalletBalance[]
+  metadata: WalletMetadata
+  settings: WalletSettings
+}
+
+export interface WalletMetadata {
+  description?: string
+  tags: string[]
+  color?: string
+  icon?: string
+  customName?: string
+  notes?: string
+}
+
+export interface WalletSettings {
+  autoConnect: boolean
+  showBalance: boolean
+  notifications: boolean
+  security: SecuritySettings
+  privacy: PrivacySettings
+}
+
+export interface SecuritySettings {
+  requirePassword: boolean
+  sessionTimeout: number // in minutes
+  biometricAuth: boolean
+  twoFactorAuth: boolean
+  whitelist: string[] // allowed domains
+}
+
+export interface PrivacySettings {
+  shareAnalytics: boolean
+  shareUsageData: boolean
+  hideZeroBalances: boolean
+  privateMode: boolean
+}
+
+export interface WalletGroup {
+  id: string
+  name: string
+  description?: string
+  wallets: string[] // wallet IDs
+  color?: string
+  icon?: string
+  createdAt: Date
+  isDefault: boolean
+}
+
+export interface WalletConnection {
+  id: string
+  walletId: string
+  timestamp: Date
+  ipAddress?: string
+  userAgent?: string
+  location?: string
+  isActive: boolean
+}
+
+export interface WalletActivity {
+  id: string
+  walletId: string
+  type: 'connected' | 'disconnected' | 'transaction' | 'balance_update' | 'settings_changed'
+  description: string
+  timestamp: Date
+  metadata?: Record<string, any>
+}
+
+export interface WalletBackup {
+  id: string
+  walletId: string
+  type: 'mnemonic' | 'private_key' | 'keystore' | 'hardware'
+  encrypted: boolean
+  backupDate: Date
+  location?: string // cloud storage path
+  checksum: string
+}
+
+export interface WalletImport {
+  source: 'file' | 'mnemonic' | 'private_key' | 'hardware' | 'cloud'
+  data: string | File
+  encryption?: string
+  metadata?: Partial<WalletMetadata>
+}
+
+export interface WalletExport {
+  format: 'json' | 'mnemonic' | 'private_key' | 'keystore'
+  includePrivateKeys: boolean
+  includeTransactions: boolean
+  includeSettings: boolean
+  password?: string
+}
+
+export interface MultiWalletState {
+  wallets: MultiWallet[]
+  groups: WalletGroup[]
+  connections: WalletConnection[]
+  activities: WalletActivity[]
+  currentWallet: MultiWallet | null
+  isLoading: boolean
+  error: string | null
+}
+
+export interface MultiWalletContextType {
+  state: MultiWalletState
+  // Wallet Management
+  addWallet: (wallet: Omit<MultiWallet, 'id' | 'createdAt'>) => Promise<string>
+  removeWallet: (walletId: string) => Promise<void>
+  updateWallet: (walletId: string, updates: Partial<MultiWallet>) => Promise<void>
+  setDefaultWallet: (walletId: string) => Promise<void>
+  switchWallet: (walletId: string) => Promise<void>
+  
+  // Group Management
+  createGroup: (group: Omit<WalletGroup, 'id' | 'createdAt'>) => Promise<string>
+  updateGroup: (groupId: string, updates: Partial<WalletGroup>) => Promise<void>
+  deleteGroup: (groupId: string) => Promise<void>
+  addWalletToGroup: (groupId: string, walletId: string) => Promise<void>
+  removeWalletFromGroup: (groupId: string, walletId: string) => Promise<void>
+  
+  // Import/Export
+  importWallet: (importData: WalletImport) => Promise<string>
+  exportWallet: (walletId: string, exportOptions: WalletExport) => Promise<void>
+  backupWallet: (walletId: string, backupType: WalletBackup['type']) => Promise<void>
+  restoreWallet: (backupId: string) => Promise<void>
+  
+  // Connection Management
+  connectWallet: (walletId: string) => Promise<void>
+  disconnectWallet: (walletId: string) => Promise<void>
+  refreshWallet: (walletId: string) => Promise<void>
+  
+  // Search and Filter
+  searchWallets: (query: string) => MultiWallet[]
+  filterWallets: (filters: WalletFilters) => MultiWallet[]
+}
+
+export interface WalletFilters {
+  type?: WalletType[]
+  network?: ('mainnet' | 'testnet')[]
+  tags?: string[]
+  groups?: string[]
+  isActive?: boolean
+  hasBalance?: boolean
+  dateRange?: {
+    start: Date
+    end: Date
+  }
+}
+
+export interface WalletStats {
+  totalWallets: number
+  activeWallets: number
+  totalBalance: string
+  totalTransactions: number
+  networks: {
+    mainnet: number
+    testnet: number
+  }
+  types: {
+    freighter: number
+    albedo: number
+  }
+  recentActivity: WalletActivity[]
+}
+
+export interface WalletNotification {
+  id: string
+  walletId: string
+  type: 'transaction' | 'balance' | 'security' | 'connection'
+  title: string
+  message: string
+  timestamp: Date
+  read: boolean
+  actionUrl?: string
+}
+
+export interface WalletSecurityAudit {
+  id: string
+  walletId: string
+  timestamp: Date
+  issues: SecurityIssue[]
+  score: number // 0-100
+  recommendations: string[]
+}
+
+export interface SecurityIssue {
+  type: 'weak_password' | 'old_backup' | 'suspicious_activity' | 'outdated_software'
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  description: string
+  recommendation: string
+}

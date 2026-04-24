@@ -262,8 +262,8 @@ export const WalletProvider: React.FC<{
       <WalletContext.Provider value= { contextValue } >
       { children }
       </WalletContext.Provider>
-  );
-};
+    );
+  };
 
 // Hook to use wallet context
 export const useStellarWallet = (): WalletContextType => {

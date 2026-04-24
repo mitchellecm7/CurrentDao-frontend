@@ -1,8 +1,7 @@
-import { 
-  Horizon, 
-  Server, 
-  TransactionBuilder, 
-  Networks, 
+import {
+  Horizon,
+  TransactionBuilder,
+  Networks,
   Asset,
   Account,
   Keypair,
@@ -10,10 +9,10 @@ import {
   Memo,
   MemoType
 } from '@stellar/stellar-sdk';
-import { 
-  WalletInfo, 
-  WalletBalance, 
-  StellarTransaction, 
+import {
+  WalletInfo,
+  WalletBalance,
+  StellarTransaction,
   StellarNetworkConfig,
   WalletError,
   ConnectionResult,
@@ -42,15 +41,15 @@ export const WATT_ASSET = {
 };
 
 // Initialize Horizon server
-export const getHorizonServer = (network: 'mainnet' | 'testnet' = 'testnet'): Server => {
+export const getHorizonServer = (network: 'mainnet' | 'testnet' = 'testnet'): Horizon.Server => {
   const config = STELLAR_NETWORKS[network];
-  return new Server(config.horizonUrl);
+  return new Horizon.Server(config.horizonUrl);
 };
 
 // Freighter wallet integration
 export class FreighterWallet {
   private static instance: FreighterWallet;
-  
+
   static getInstance(): FreighterWallet {
     if (!FreighterWallet.instance) {
       FreighterWallet.instance = new FreighterWallet();
@@ -60,7 +59,7 @@ export class FreighterWallet {
 
   async isAvailable(): Promise<boolean> {
     if (typeof window === 'undefined') return false;
-    
+
     try {
       return !!(window as any).freighter;
     } catch {
@@ -70,7 +69,7 @@ export class FreighterWallet {
 
   async isConnected(): Promise<boolean> {
     if (!await this.isAvailable()) return false;
-    
+
     try {
       const isAllowed = await (window as any).freighter.isAllowed();
       return isAllowed;
@@ -97,7 +96,7 @@ export class FreighterWallet {
       }
 
       const publicKey = await (window as any).freighter.getPublicKey();
-      
+
       if (!publicKey) {
         return {
           success: false,
@@ -153,7 +152,7 @@ export class FreighterWallet {
 // Albedo wallet integration
 export class AlbedoWallet {
   private static instance: AlbedoWallet;
-  
+
   static getInstance(): AlbedoWallet {
     if (!AlbedoWallet.instance) {
       AlbedoWallet.instance = new AlbedoWallet();
@@ -175,9 +174,9 @@ export class AlbedoWallet {
 
       // Load Albedo SDK
       await this.loadAlbedoSDK();
-      
+
       const result = await (window as any).albedo.publicKey();
-      
+
       if (!result || !result.publicKey) {
         return {
           success: false,
@@ -217,8 +216,8 @@ export class AlbedoWallet {
 
       const script = document.createElement('script');
       script.src = 'https://albedo.link/lib/albedo.min.js';
-      script.onload = resolve;
-      script.onerror = reject;
+      script.onload = () => resolve();
+      script.onerror = (e) => reject(e);
       document.head.appendChild(script);
     });
   }
@@ -238,7 +237,7 @@ export class AlbedoWallet {
 
 // Stellar utility functions
 export class StellarUtils {
-  private server: Server;
+  private server: Horizon.Server;
   private network: 'mainnet' | 'testnet';
 
   constructor(network: 'mainnet' | 'testnet' = 'testnet') {
@@ -305,9 +304,9 @@ export class StellarUtils {
   ): Promise<string> {
     try {
       const sourceAccount = await this.server.loadAccount(sourcePublicKey);
-      
-      const transaction = new TransactionBuilder(sourceAccount, {
-        fee: await this.server.fetchBaseFee(),
+
+      const transactionBuilder = new TransactionBuilder(sourceAccount, {
+        fee: (await this.server.fetchBaseFee()).toString(),
         networkPassphrase: STELLAR_NETWORKS[this.network].passphrase,
       })
         .addOperation(Operation.payment({
@@ -315,19 +314,20 @@ export class StellarUtils {
           asset,
           amount,
         }))
-        .setTimeout(30)
-        .build();
+        .setTimeout(30);
 
       if (memo) {
-        transaction.addMemo(Memo.text(memo));
+        transactionBuilder.addMemo(Memo.text(memo));
       }
+
+      const transaction = transactionBuilder.build();
 
       const transactionXDR = transaction.toXDR();
       const signedTransactionXDR = await this.signTransaction(transactionXDR);
-      
+
       const signedTransaction = TransactionBuilder.fromXDR(signedTransactionXDR, STELLAR_NETWORKS[this.network].passphrase);
       const result = await this.server.submitTransaction(signedTransaction);
-      
+
       return result.hash;
     } catch (error) {
       throw new Error(`Failed to send payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -344,8 +344,8 @@ export class StellarUtils {
     try {
       const balances = await this.getAccountBalance(publicKey);
       const wattBalance = balances.find(
-        (balance) => balance.asset_code === WATT_ASSET.code && 
-                     balance.asset_issuer === WATT_ASSET.issuer
+        (balance) => balance.asset_code === WATT_ASSET.code &&
+          balance.asset_issuer === WATT_ASSET.issuer
       );
 
       if (!wattBalance) {
@@ -365,7 +365,7 @@ export class StellarUtils {
 
   formatAddress(address: string, truncate: boolean = true): string {
     if (!truncate || address.length <= 10) return address;
-    
+
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }
 

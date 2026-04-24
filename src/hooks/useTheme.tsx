@@ -314,11 +314,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return 'light';
   }, []);
 
-  const resolvedMode = preview
-    ? preview.mode
-    : mode === 'system'
-      ? getSystemTheme()
-      : mode;
+  const targetMode = preview ? preview.mode : mode;
+  const resolvedMode = targetMode === 'system' ? getSystemTheme() : targetMode as 'light' | 'dark';
 
   const applyTheme = useCallback((targetMode: ThemeMode, targetScheme: ColorScheme) => {
     const actualMode = targetMode === 'system' ? getSystemTheme() : targetMode;
@@ -426,8 +423,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   };
 
   return (
-    <ThemeContext.Provider value= { value } >
-    { children }
+    <ThemeContext.Provider value={value}>
+      {children}
     </ThemeContext.Provider>
   );
 }
