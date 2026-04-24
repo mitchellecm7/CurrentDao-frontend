@@ -12,8 +12,8 @@ import {
   Shield,
   ZapOff,
 } from 'lucide-react'
-import { useSentimentData } from '@/hooks/useSentimentData'
-import { SocialMediaPost, SocialMediaPlatform } from '@/types/sentiment'
+import { useSentimentAnalysis } from '@/hooks/useSentimentAnalysis'
+import { SocialMediaPost } from '@/services/sentiment/social-monitoring'
 
 interface SocialMediaTrackerProps {
   showLimit?: number
@@ -21,7 +21,7 @@ interface SocialMediaTrackerProps {
   autoRefresh?: boolean
 }
 
-const PLATFORM_COLORS: Record<SocialMediaPlatform, { bg: string; text: string; icon: string }> = {
+const PLATFORM_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
   twitter: { bg: 'bg-blue-50', text: 'text-blue-600', icon: '𝕏' },
   reddit: { bg: 'bg-orange-50', text: 'text-orange-600', icon: 'R' },
   discord: { bg: 'bg-indigo-50', text: 'text-indigo-600', icon: 'D' },
@@ -43,26 +43,62 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
   className = '',
   autoRefresh = true,
 }) => {
-  const { socialPosts, isLoading, error } = useSentimentData(
-    { timeRange: '4h', socialOnly: true },
-    autoRefresh,
-    30000 // 30 seconds
-  )
+  const sentimentData = useSentimentAnalysis({
+    keywords: ['energy', 'oil', 'gas', 'renewable'],
+    platforms: ['twitter', 'reddit', 'telegram'],
+    timeWindow: 24,
+    updateInterval: 300,
+    enableRealTime: autoRefresh
+  })
 
-  const [selectedPlatform, setSelectedPlatform] = useState<SocialMediaPlatform | 'all'>('all')
+  const [selectedPlatform, setSelectedPlatform] = useState<string | 'all'>('all')
   const [sortBy, setSortBy] = useState<'engagement' | 'sentiment' | 'latest'>('engagement')
   const [minInfluence, setMinInfluence] = useState(0)
 
+  // Generate mock data for demonstration
+  const mockPosts = [
+    {
+      id: '1',
+      platform: 'twitter',
+      author: 'energy_expert',
+      content: 'Oil prices are rising due to supply constraints. Renewable energy adoption is accelerating.',
+      timestamp: new Date(),
+      sentiment: 0.3,
+      confidence: 0.8,
+      likes: 245,
+      shares: 89,
+      comments: 45,
+      verified: true,
+      influenceScore: 85,
+      hashtags: ['oil', 'renewable', 'energy']
+    },
+    {
+      id: '2',
+      platform: 'reddit',
+      author: 'solar_enthusiast',
+      content: 'Solar panel costs have dropped 40% in the last 2 years. Great time to invest!',
+      timestamp: new Date(Date.now() - 3600000),
+      sentiment: 0.6,
+      confidence: 0.9,
+      likes: 567,
+      shares: 234,
+      comments: 89,
+      verified: false,
+      influenceScore: 72,
+      hashtags: ['solar', 'investment', 'clean-energy']
+    }
+  ]
+
   // Filter and sort posts
-  const filteredPosts = socialPosts
-    .filter((post) => {
+  const filteredPosts = mockPosts
+    .filter((post: any) => {
       const platformMatch = selectedPlatform === 'all' || post.platform === selectedPlatform
       const influenceMatch = post.influenceScore >= minInfluence
       return platformMatch && influenceMatch
     })
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       if (sortBy === 'engagement') {
-        return b.engagement - a.engagement
+        return b.likes - a.likes
       } else if (sortBy === 'sentiment') {
         return b.sentiment - a.sentiment
       } else {
@@ -71,9 +107,9 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
     })
     .slice(0, showLimit)
 
-  const platforms = Array.from(new Set(socialPosts.map((p) => p.platform))) as SocialMediaPlatform[]
+  const platforms = Array.from(new Set(mockPosts.map((p: any) => p.platform)))
 
-  if (error) {
+  if (sentimentData.socialMedia.error) {
     return (
       <div className={`rounded-lg bg-red-50 p-4 border border-red-200 ${className}`}>
         <p className="text-red-700">Failed to load social media data</p>
@@ -159,7 +195,7 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
       {/* Posts Feed */}
       <div className="space-y-3">
         <AnimatePresence mode="wait">
-          {isLoading && filteredPosts.length === 0 ? (
+          {sentimentData.socialMedia.isLoading && filteredPosts.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -226,34 +262,27 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
                   {/* Sentiment Badge */}
                   <span
                     className={`px-2 py-1 rounded text-xs font-semibold flex-shrink-0 ${
-                      SENTIMENT_COLORS[post.sentimentLabel]
+                      post.sentiment > 0.3 ? SENTIMENT_COLORS.very_positive : 
+                      post.sentiment > 0.1 ? SENTIMENT_COLORS.positive :
+                      post.sentiment < -0.3 ? SENTIMENT_COLORS.very_negative :
+                      post.sentiment < -0.1 ? SENTIMENT_COLORS.negative :
+                      SENTIMENT_COLORS.neutral
                     }`}
                   >
                     {post.sentiment > 0 ? '🟢' : post.sentiment < 0 ? '🔴' : '🟡'} {post.sentiment > 0 ? '+' : ''}
-                    {post.sentiment}
+                    {post.sentiment.toFixed(2)}
                   </span>
                 </div>
 
                 {/* Post Content */}
                 <p className="text-sm text-gray-700 mb-3 line-clamp-3">{post.content}</p>
 
-                {/* Keywords */}
-                {post.keywords && post.keywords.length > 0 && (
+                {/* Hashtags */}
+                {post.hashtags && post.hashtags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {post.keywords.slice(0, 4).map((keyword) => (
+                    {post.hashtags.slice(0, 4).map((keyword: string) => (
                       <span key={keyword} className="px-2 py-0.5 bg-white bg-opacity-50 rounded text-xs text-gray-700">
                         #{keyword}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Energy Types */}
-                {post.energyTypes && post.energyTypes.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3 pb-3 border-b border-gray-300 border-opacity-30">
-                    {post.energyTypes.map((type) => (
-                      <span key={type} className="px-2 py-0.5 bg-blue-200 bg-opacity-50 rounded text-xs text-blue-900">
-                        {type}
                       </span>
                     ))}
                   </div>
@@ -269,24 +298,24 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
 
                     <div className="flex items-center gap-1 text-gray-600">
                       <MessageCircle className="w-4 h-4" />
-                      <span>{post.replies}</span>
+                      <span>{post.comments}</span>
                     </div>
 
                     <div className="flex items-center gap-1 text-gray-600">
                       <Share2 className="w-4 h-4" />
-                      <span>{post.retweets}</span>
+                      <span>{post.shares}</span>
                     </div>
 
-                    {post.virality > 80 && (
+                    {post.likes > 500 && (
                       <div className="flex items-center gap-1 text-red-600 font-semibold">
                         <TrendingUp className="w-4 h-4" />
-                        <span>Viral</span>
+                        <span>Trending</span>
                       </div>
                     )}
                   </div>
 
                   <div className="text-xs text-gray-600">
-                    Engagement: <span className="font-semibold">{Math.round(post.engagement)}</span>
+                    Engagement: <span className="font-semibold">{post.likes + post.shares + post.comments}</span>
                   </div>
                 </div>
 
@@ -316,14 +345,14 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <p className="text-xs text-gray-600">Total Posts</p>
-            <p className="text-lg font-bold text-gray-900">{socialPosts.length}</p>
+            <p className="text-lg font-bold text-gray-900">{mockPosts.length}</p>
           </div>
 
           <div className="text-center">
             <p className="text-xs text-gray-600">Avg. Engagement</p>
             <p className="text-lg font-bold text-gray-900">
-              {socialPosts.length > 0
-                ? Math.round(socialPosts.reduce((sum, p) => sum + p.engagement, 0) / socialPosts.length)
+              {mockPosts.length > 0
+                ? Math.round(mockPosts.reduce((sum: number, p: any) => sum + (p.likes + p.shares + p.comments), 0) / mockPosts.length)
                 : 'N/A'}
             </p>
           </div>
@@ -331,7 +360,7 @@ export const SocialMediaTracker: React.FC<SocialMediaTrackerProps> = ({
           <div className="text-center">
             <p className="text-xs text-gray-600">Influencers</p>
             <p className="text-lg font-bold text-gray-900">
-              {socialPosts.filter((p) => p.influenceScore > 75).length}
+              {mockPosts.filter((p: any) => p.influenceScore > 75).length}
             </p>
           </div>
 
