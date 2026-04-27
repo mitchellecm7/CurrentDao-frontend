@@ -3,6 +3,161 @@
 // Energy Types
 export type EnergyType = 'solar' | 'wind' | 'hydro' | 'nuclear' | 'natural_gas' | 'coal' | 'biomass';
 
+// Behavior Analytics Types
+
+// Heatmap Data Types
+export interface HeatmapPoint {
+  x: number;
+  y: number;
+  intensity: number;
+  type: 'click' | 'scroll' | 'hover' | 'movement';
+  timestamp: string;
+  element?: string;
+}
+
+export interface HeatmapData {
+  points: HeatmapPoint[];
+  viewport: {
+    width: number;
+    height: number;
+  };
+  metadata: {
+    url: string;
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    totalSessions: number;
+    totalInteractions: number;
+  };
+}
+
+// Session Recording Types
+export interface SessionEvent {
+  id: string;
+  timestamp: number;
+  type: 'click' | 'scroll' | 'mousemove' | 'keypress' | 'focus' | 'blur' | 'resize' | 'visibilitychange' | 'error';
+  data: {
+    x?: number;
+    y?: number;
+    target?: string;
+    key?: string;
+    scrollX?: number;
+    scrollY?: number;
+    width?: number;
+    height?: number;
+    hidden?: boolean;
+    message?: string;
+    filename?: string;
+    lineno?: number;
+    colno?: number;
+    stack?: string;
+  };
+  viewport: {
+    width: number;
+    height: number;
+  };
+}
+
+export interface SessionRecording {
+  id: string;
+  sessionId: string;
+  userId?: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  events: SessionEvent[];
+  metadata: {
+    userAgent: string;
+    url: string;
+    referrer?: string;
+    screenResolution: string;
+    timezone: string;
+    consent: boolean;
+    anonymized: boolean;
+  };
+  stats: {
+    totalEvents: number;
+    clicks: number;
+    scrolls: number;
+    keypresses: number;
+    mouseMovements: number;
+    pageViews: number;
+    averageSessionTime: number;
+    bounceRate: number;
+  };
+}
+
+// User Flow Analysis Types
+export interface FlowStep {
+  id: string;
+  name: string;
+  path: string;
+  type: 'page' | 'action' | 'conversion' | 'exit';
+  users: number;
+  conversionRate: number;
+  avgTimeSpent: number;
+  dropoffRate: number;
+  previousStep?: string;
+  nextSteps: string[];
+}
+
+export interface UserFlow {
+  id: string;
+  name: string;
+  description: string;
+  steps: FlowStep[];
+  totalUsers: number;
+  completedUsers: number;
+  overallConversionRate: number;
+  avgFunnelTime: number;
+  dropoffPoints: string[];
+  entryPoints: string[];
+  exitPoints: string[];
+  createdAt: string;
+  lastUpdated: string;
+}
+
+// A/B Testing Types
+export interface ABTestVariant {
+  id: string;
+  name: string;
+  description: string;
+  trafficAllocation: number;
+  conversions: number;
+  visitors: number;
+  conversionRate: number;
+  revenue?: number;
+  avgOrderValue?: number;
+  isControl?: boolean;
+}
+
+export interface ABTest {
+  id: string;
+  name: string;
+  description: string;
+  hypothesis: string;
+  status: 'draft' | 'running' | 'paused' | 'completed' | 'archived';
+  startDate?: string;
+  endDate?: string;
+  targetMetric: 'conversion_rate' | 'revenue' | 'click_through_rate' | 'bounce_rate' | 'avg_session_duration';
+  confidenceLevel: number;
+  statisticalSignificance: number;
+  sampleSize: number;
+  minSampleSize: number;
+  variants: ABTestVariant[];
+  winner?: string;
+  createdAt: string;
+  lastUpdated: string;
+  trafficSplitType: 'equal' | 'manual' | 'weighted';
+  targetingCriteria: {
+    deviceTypes: string[];
+    browsers: string[];
+    locations: string[];
+    userSegments: string[];
+  };
+}
+
 // Time Intervals
 export type TimeInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w' | '1M';
 
@@ -380,51 +535,124 @@ export interface ChartSeries {
   type?: 'line' | 'bar' | 'area' | 'scatter';
 }
 
-// Export all types for easy importing
-export type {
-  // Core types
-  EnergyType,
-  TimeInterval,
-  MarketDataPoint,
-  MarketMetrics,
-  VolumeAnalysis,
-  PriceTrend,
-  SentimentData,
-  ComparativeAnalysis,
-  PredictiveAnalytics,
-  
-  // Dashboard types
-  DashboardConfig,
-  DashboardLayout,
-  WidgetConfig,
-  WidgetType,
-  
-  // Real-time types
-  RealtimeData,
-  MarketEvent,
-  
-  // API types
-  AnalyticsResponse,
-  HistoricalDataRequest,
-  AnalyticsRequest,
-  
-  // Component props
-  MarketOverviewProps,
-  VolumeAnalysisProps,
-  PriceTrendsProps,
-  SentimentIndicatorsProps,
-  PredictiveAnalyticsProps,
-  ComparativeAnalysisProps,
-  
-  // Hook types
-  MarketAnalyticsState,
-  MarketAnalyticsActions,
-  MarketAnalyticsContextType,
-  
-  // Utility types
-  TechnicalIndicator,
-  MarketAlert,
-  EnergyMarketStats,
-  ChartDataPoint,
-  ChartSeries,
-};
+// Advanced Analytics Types
+export type TimeRange = '1h' | '24h' | '7d' | '30d' | '90d' | '1y';
+
+export interface EnergyData {
+  energyMix: {
+    type: string;
+    value: number;
+    percentage: number;
+  }[];
+  totalProduction: number;
+  totalConsumption: number;
+  efficiency: number;
+  peakDemand: number;
+  averagePrice: number;
+}
+
+export interface ROIMetrics {
+  totalROI: number;
+  totalInvestment: number;
+  totalReturns: number;
+  monthlyChange: number;
+  yearlyChange: number;
+  paybackPeriod: number;
+  annualizedROI: number;
+  historicalROI: {
+    date: string;
+    roi: number;
+    investment: number;
+    returns: number;
+    cumulativeROI?: number;
+  }[];
+}
+
+export interface ConsumptionData {
+  totalConsumption: number;
+  efficiency: number;
+  hourlyPattern: {
+    hour: number;
+    consumption: number;
+  }[];
+  dailyPattern: {
+    day: string;
+    consumption: number;
+  }[];
+  monthlyPattern: {
+    month: string;
+    consumption: number;
+  }[];
+  byEnergyType: {
+    type: string;
+    consumption: number;
+    percentage: number;
+  }[];
+  peakHours: {
+    hour: number;
+    consumption: number;
+    frequency: number;
+  }[];
+}
+
+export interface CarbonData {
+  totalEmissions: number;
+  reductionRate: number;
+  emissionsBySource: {
+    source: string;
+    emissions: number;
+    percentage: number;
+  }[];
+  carbonCredits: {
+    earned: number;
+    used: number;
+    balance: number;
+  };
+  trends: {
+    date: string;
+    emissions: number;
+    reduction: number;
+  }[];
+  benchmarks: {
+    industry: number;
+    regional: number;
+    global: number;
+  };
+}
+
+export interface MarketBenchmark {
+  performance: number;
+  averagePrice: number;
+  marketShare: number;
+  volatility: number;
+  liquidity: number;
+  competitors: {
+    name: string;
+    performance: number;
+    marketShare: number;
+  }[];
+  trends: {
+    date: string;
+    price: number;
+    volume: number;
+    sentiment: number;
+  }[];
+}
+
+export interface PredictiveData {
+  pricePredictions: {
+    timestamp: string;
+    actualPrice?: number;
+    predictedPrice: number;
+    confidence: number;
+  }[];
+  volumePredictions: {
+    timestamp: string;
+    predictedVolume: number;
+    confidence: number;
+  }[];
+  accuracy: number;
+  modelType: string;
+  lastTrained: string;
+}
+

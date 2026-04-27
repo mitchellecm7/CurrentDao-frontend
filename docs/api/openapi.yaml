@@ -1,0 +1,60 @@
+openapi: 3.0.0
+info:
+  title: CurrentDao API
+  version: 1.0.0
+  description: API for interacting with the CurrentDao platform, including trading, analytics, and DAO governance.
+servers:
+  - url: https://api.currentdao.org/v1
+paths:
+  /trading/execute:
+    post:
+      summary: Execute a trade
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                symbol:
+                  type: string
+                side:
+                  type: string
+                  enum: [buy, sell]
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Trade executed successfully
+  /analytics/stats:
+    get:
+      summary: Get platform statistics
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeUsers:
+                    type: integer
+  /oracles/price/{symbol}:
+    get:
+      summary: Get real-time price from oracle network
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
