@@ -11,11 +11,12 @@
     "lighthouse": "lighthouse http://localhost:3000 --output=html --output-path=./lighthouse-report.html"
   },
   "dependencies": {
+    "@next/bundle-analyzer": "^14.2.5",
+    "lucide-react": "^0.263.1",
     "next": "14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.263.1",
-    "@next/bundle-analyzer": "^14.2.5",
+    "react-hot-toast": "^2.6.0",
     "web-vitals": "^3.5.0"
   },
   "devDependencies": {
