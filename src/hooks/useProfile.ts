@@ -525,8 +525,98 @@ export function useProfile(): ProfileContextType {
     async (sessionId: string) => {
       if (!state.securitySettings) return;
 
-      setUpdating(true);
-      setError(null);
+  const revokeAllSessions = useCallback(async () => {
+    if (!state.securitySettings) return;
+    
+    setUpdating(true);
+    setError(null);
+    
+    try {
+      // Simulate API call to revoke all sessions except current
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setState(prev => ({
+        ...prev,
+        securitySettings: prev.securitySettings 
+          ? {
+              ...prev.securitySettings,
+              activeSessions: prev.securitySettings.activeSessions.filter(s => s.isCurrent)
+            }
+          : null,
+      }));
+      
+      toast.success('All other sessions have been revoked');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to revoke sessions';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }, [state.securitySettings, setUpdating, setError]);
+
+  const signInWithStellar = useCallback(async (publicKey: string) => {
+    setUpdating(true);
+    setError(null);
+    
+    try {
+      // SEP-10 Flow Simulation:
+      // 1. GET /auth/challenge?public_key=...
+      // 2. Client signs transaction with wallet
+      // 3. POST /auth/verify with signed XDR
+      
+      toast.loading('Requesting challenge...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast.loading('Waiting for wallet signature...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast.loading('Verifying signature...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast.dismiss();
+      toast.success('Successfully signed in with Stellar');
+      
+      await refreshProfile();
+    } catch (error) {
+      toast.dismiss();
+      const errorMessage = error instanceof Error ? error.message : 'SIWS failed';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }, [refreshProfile, setUpdating, setError]);
+
+  const revokeApiKey = useCallback(async (keyId: string) => {
+    if (!state.securitySettings) return;
+    
+    setUpdating(true);
+    setError(null);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setState(prev => ({
+        ...prev,
+        securitySettings: prev.securitySettings 
+          ? {
+              ...prev.securitySettings,
+              apiKeys: prev.securitySettings.apiKeys.filter(k => k.id !== keyId)
+            }
+          : null,
+      }));
+      
+      toast.success('API key revoked successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to revoke API key';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }, [state.securitySettings, setUpdating, setError]);
 
       try {
         // Simulate API call
@@ -791,6 +881,8 @@ export function useProfile(): ProfileContextType {
     enableTwoFactor,
     disableTwoFactor,
     revokeSession,
+    revokeAllSessions,
+    signInWithStellar,
     revokeApiKey,
     createApiKey,
     refreshProfile,

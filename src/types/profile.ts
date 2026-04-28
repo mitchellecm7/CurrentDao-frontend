@@ -93,8 +93,18 @@ export interface SecuritySettings {
   lastPasswordChange: string;
   activeSessions: Session[];
   apiKeys: ApiKey[];
+  auditLogs: AuditLog[];
   loginAlerts: boolean;
   withdrawalWhitelist: string[];
+}
+
+export interface AuditLog {
+  id: string;
+  event: 'login' | 'logout' | 'password_change' | '2fa_toggle' | 'session_revoke' | 'api_key_create';
+  status: 'success' | 'failure';
+  device: string;
+  ipAddress: string;
+  timestamp: string;
 }
 
 export interface Session {
@@ -150,6 +160,8 @@ export interface ProfileContextType {
   enableTwoFactor: (method: "sms" | "email" | "authenticator") => Promise<void>;
   disableTwoFactor: () => Promise<void>;
   revokeSession: (sessionId: string) => Promise<void>;
+  revokeAllSessions: () => Promise<void>;
+  signInWithStellar: (publicKey: string) => Promise<void>;
   revokeApiKey: (keyId: string) => Promise<void>;
   createApiKey: (
     name: string,
@@ -216,6 +228,7 @@ export interface SecuritySettingsProps {
     method?: "sms" | "email" | "authenticator",
   ) => void;
   onSessionRevoke: (sessionId: string) => void;
+  onRevokeAllSessions: () => void;
   onApiKeyRevoke: (keyId: string) => void;
   onApiKeyCreate: (
     name: string,

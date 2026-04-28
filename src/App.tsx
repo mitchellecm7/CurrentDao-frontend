@@ -1,15 +1,227 @@
-import React from 'react';
-import Dashboard from './components/dashboard/Dashboard';
+import React, { useState, useEffect } from 'react';
+import { 
+  EnergyListing, 
+  RegionalMarketData, 
+  LocationFilter, 
+  HeatMapPoint,
+  UserLocation,
+  DistanceCalculation 
+} from './types/maps';
+import { InteractiveMap } from './components/maps/InteractiveMap';
+import { LocationFilterComponent, FilterSummary } from './components/maps/LocationFilter';
+import RegionalMarketComponent from './components/maps/RegionalMarket';
+import DistanceCalculatorComponent from './components/maps/DistanceCalculator';
+import HeatMapComponent from './components/maps/HeatMap';
+import { AdvancedSearch } from './components/search/AdvancedSearch';
+import { SearchableItem } from './types/search';
+import { useGeolocation } from './hooks/useGeolocation';
+import { useMapIntegration } from './hooks/useMapIntegration';
+import { useChangelog } from './hooks/useChangelog';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcutsService';
+import { calculateRegionalMarketData } from './utils/mapHelpers';
+import { PWAInstallPrompt } from './components/pwa/PWAInstallPrompt';
+import { ChangelogModal } from './components/changelog/ChangelogModal';
+import { KeyboardShortcutsModal } from './components/shortcuts/KeyboardShortcutsModal';
+import { CarbonCreditDashboard } from './components/carbon/CarbonCreditDashboard';
 
-const App: React.FC = () => {
-  return (
-    <div className="App">
-      <Dashboard />
-    </div>
-  );
+// Sample data generator for demonstration
+const generateSampleListings = (count: number): EnergyListing[] => {
+  const types: Array<'solar' | 'wind' | 'hydro' | 'geothermal' | 'biomass'> = ['solar', 'wind', 'hydro', 'geothermal', 'biomass'];
+  const regions = [
+    { lat: 40.7128, lng: -74.0060, name: 'New York' }, // Northeast
+    { lat: 34.0522, lng: -118.2437, name: 'Los Angeles' }, // West
+    { lat: 41.8781, lng: -87.6298, name: 'Chicago' }, // Midwest
+    { lat: 29.7604, lng: -95.3698, name: 'Houston' }, // Southeast
+    { lat: 33.4484, lng: -112.0740, name: 'Phoenix' }, // Southwest
+  ];
+
+  return Array.from({ length: count }, (_, index) => {
+    const region = regions[Math.floor(Math.random() * regions.length)];
+    const latOffset = (Math.random() - 0.5) * 2; // ±1 degree
+    const lngOffset = (Math.random() - 0.5) * 2; // ±1 degree
+    
+    return {
+      id: `listing-${index}`,
+      title: `${types[Math.floor(Math.random() * types.length)]} Energy - ${region.name} ${index + 1}`,
+      type: types[Math.floor(Math.random() * types.length)],
+      coordinates: {
+        lat: region.lat + latOffset,
+        lng: region.lng + lngOffset,
+      },
+      price: Math.random() * 80 + 20, // $20-100 per MWh
+      capacity: Math.random() * 100 + 10, // 10-110 MW
+      available: Math.random() > 0.3,
+      seller: {
+        id: `seller-${Math.floor(Math.random() * 50)}`,
+        name: `Energy Provider ${Math.floor(Math.random() * 20) + 1}`,
+        rating: Math.random() * 2 + 3, // 3-5 rating
+      },
+      createdAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+      description: `High-quality ${types[Math.floor(Math.random() * types.length)]} energy available for immediate delivery.`,
+    };
+  });
 };
 
-export default App
+const generateSampleRegionalData = (listings: EnergyListing[]): RegionalMarketData[] => {
+  const regions = ['northeast', 'southeast', 'midwest', 'southwest', 'west'];
+  
+  return regions.map(region => {
+    const regionData = calculateRegionalMarketData(listings, region);
+    return regionData || {
+      region,
+      averagePrice: Math.random() * 60 + 30,
+      priceTrend: ['up', 'down', 'stable'][Math.floor(Math.random() * 3)] as 'up' | 'down' | 'stable',
+      totalListings: Math.floor(Math.random() * 100) + 10,
+      totalCapacity: Math.random() * 1000 + 200,
+      coordinates: { lat: 39.8283, lng: -98.5795 }, // Default center
+      lastUpdated: new Date().toISOString(),
+    };
+  });
+};
+
+const App: React.FC = () => {
+  // State management
+  const [listings, setListings] = useState<EnergyListing[]>([]);
+  const [regionalData, setRegionalData] = useState<RegionalMarketData[]>([]);
+  const [selectedListing, setSelectedListing] = useState<EnergyListing | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<RegionalMarketData | null>(null);
+  const [locationFilters, setLocationFilters] = useState<LocationFilter[]>([]);
+  const [activeTab, setActiveTab] = useState<'map' | 'regional' | 'distance' | 'heatmap' | 'carbon'>('map');
+
+  // Hooks
+  const { location: userLocation, requestLocation, permission } = useGeolocation();
+  const { mapState, updateViewport, addFilter, removeFilter, setUserLocation } = useMapIntegration({
+    listings,
+    regionalData,
+    enableClustering: true,
+    enableHeatMap: false,
+  });
+  const { isOpen: isChangelogOpen, closeChangelog, unseenCount } = useChangelog();
+  const { 
+    shortcuts, 
+    isModalOpen: isShortcutsModalOpen, 
+    closeModal: closeShortcutsModal,
+    updateShortcut 
+  } = useKeyboardShortcuts();
+
+  // Initialize sample data
+  useEffect(() => {
+    const sampleListings = generateSampleListings(1500); // Generate 1500 listings for performance testing
+    const sampleRegionalData = generateSampleRegionalData(sampleListings);
+    
+    setListings(sampleListings);
+    setRegionalData(sampleRegionalData);
+  }, []);
+
+  // Handle location filters
+  const handleFiltersChange = (filters: LocationFilter[]) => {
+    setLocationFilters(filters);
+    updateFilters(filters);
+  };
+
+  const updateFilters = (filters: LocationFilter[]) => {
+    // Clear existing filters and add new ones
+    filters.forEach(filter => addFilter(filter));
+  };
+
+  // Handle map interactions
+  const handleMarkerClick = (marker: any) => {
+    if (marker.type === 'listing') {
+      setSelectedListing(marker.data as EnergyListing);
+    }
+  };
+
+  const handleViewportChange = (viewport: any) => {
+    updateViewport(viewport);
+  };
+
+  // Handle regional market selection
+  const handleRegionSelect = (region: RegionalMarketData) => {
+    setSelectedRegion(region);
+    setActiveTab('map');
+    // Center map on selected region
+    updateViewport({
+      center: region.coordinates,
+      zoom: 8,
+    });
+  };
+
+  // Handle heat map interactions
+  const handleHeatMapClick = (point: HeatMapPoint) => {
+    console.log('Heat map point clicked:', point);
+    // Could show details or filter listings based on heat map point
+  };
+
+  // Handle distance calculation
+  const handleCalculationComplete = (calculation: DistanceCalculation) => {
+    console.log('Distance calculation completed:', calculation);
+  };
+
+  // Handle search result selection
+  const handleSearchResultClick = (item: SearchableItem) => {
+    console.log('Search result selected:', item);
+    // Could integrate with map, show details, or navigate to item
+    if (item.type === 'energy_trade' && item.metadata.coordinates) {
+      // Center map on energy trade location
+      updateViewport({
+        center: item.metadata.coordinates,
+        zoom: 10,
+      });
+      setActiveTab('map');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt
+        onInstall={() => console.log('PWA installation initiated')}
+        onDismiss={() => console.log('PWA install prompt dismissed')}
+        onRemindLater={() => console.log('PWA install remind later')}
+      />
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Energy Trading Platform</h1>
+              <span className="ml-3 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                Live
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{listings.length}</span> listings
+              </div>
+              
+              {unseenCount > 0 && (
+                <button
+                  onClick={() => {/* Will be handled by changelog modal */}}
+                  className="relative px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  What's New
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+              )}
+              
+              <button
+                onClick={() => {/* Will open changelog modal */}}
+                className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Help
+              </button>
+              
+              {permission === 'prompt' && (
+                <button
+                  onClick={requestLocation}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Enable Location
+                </button>
+              )}
+              
+              {userLocation && (
                 <div className="text-sm text-gray-600">
                   <span className="font-medium">Location:</span> ±{userLocation.accuracy}m
                 </div>
@@ -29,6 +241,7 @@ export default App
               { key: 'regional', label: 'Regional Markets', icon: '📊' },
               { key: 'distance', label: 'Distance Calculator', icon: '📏' },
               { key: 'heatmap', label: 'Heat Map', icon: '🔥' },
+              { key: 'carbon', label: 'Carbon Credits', icon: '🌿' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -131,6 +344,10 @@ export default App
                 height="600px"
               />
             )}
+
+            {activeTab === 'carbon' && (
+              <CarbonCreditDashboard />
+            )}
           </div>
         </div>
       </main>
@@ -181,6 +398,20 @@ export default App
           </div>
         </div>
       </footer>
+
+      {/* Changelog Modal */}
+      <ChangelogModal
+        isOpen={isChangelogOpen}
+        onClose={closeChangelog}
+      />
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={closeShortcutsModal}
+        shortcuts={shortcuts}
+        onShortcutUpdate={updateShortcut}
+      />
     </div>
   );
 };

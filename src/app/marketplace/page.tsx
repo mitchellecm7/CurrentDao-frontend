@@ -5,6 +5,7 @@ import { ListingGrid } from '@/components/marketplace/ListingGrid';
 import { QuickBidModal } from '@/components/marketplace/QuickBidModal';
 import { SortOptions } from '@/components/marketplace/SortOptions';
 import { useMarketplace } from '@/hooks/useMarketplace';
+import { SyncIndicator } from '@/components/common/SyncIndicator';
 import { Globe } from 'lucide-react';
 
 export default function MarketplacePage() {
@@ -31,6 +32,17 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Sync Indicator */}
+      <SyncIndicator
+        queryKey={['marketplace-listings']}
+        staleTime={5 * 60 * 1000} // 5 minutes
+        refetchInterval={30000} // 30 seconds
+        enableBackgroundSync={true}
+        maxRetries={3}
+        position="top-right"
+        showLabel={true}
+      />
+      
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
