@@ -16,7 +16,13 @@ import { AdvancedSearch } from './components/search/AdvancedSearch';
 import { SearchableItem } from './types/search';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useMapIntegration } from './hooks/useMapIntegration';
+import { useChangelog } from './hooks/useChangelog';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcutsService';
 import { calculateRegionalMarketData } from './utils/mapHelpers';
+import { PWAInstallPrompt } from './components/pwa/PWAInstallPrompt';
+import { ChangelogModal } from './components/changelog/ChangelogModal';
+import { KeyboardShortcutsModal } from './components/shortcuts/KeyboardShortcutsModal';
+import { CarbonCreditDashboard } from './components/carbon/CarbonCreditDashboard';
 
 // Sample data generator for demonstration
 const generateSampleListings = (count: number): EnergyListing[] => {
@@ -80,7 +86,7 @@ const App: React.FC = () => {
   const [selectedListing, setSelectedListing] = useState<EnergyListing | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<RegionalMarketData | null>(null);
   const [locationFilters, setLocationFilters] = useState<LocationFilter[]>([]);
-  const [activeTab, setActiveTab] = useState<'map' | 'regional' | 'distance' | 'heatmap'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'regional' | 'distance' | 'heatmap' | 'carbon'>('map');
 
   // Hooks
   const { location: userLocation, requestLocation, permission } = useGeolocation();
@@ -90,6 +96,13 @@ const App: React.FC = () => {
     enableClustering: true,
     enableHeatMap: false,
   });
+  const { isOpen: isChangelogOpen, closeChangelog, unseenCount } = useChangelog();
+  const { 
+    shortcuts, 
+    isModalOpen: isShortcutsModalOpen, 
+    closeModal: closeShortcutsModal,
+    updateShortcut 
+  } = useKeyboardShortcuts();
 
   // Initialize sample data
   useEffect(() => {
@@ -160,6 +173,12 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt
+        onInstall={() => console.log('PWA installation initiated')}
+        onDismiss={() => console.log('PWA install prompt dismissed')}
+        onRemindLater={() => console.log('PWA install remind later')}
+      />
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -175,6 +194,23 @@ const App: React.FC = () => {
               <div className="text-sm text-gray-600">
                 <span className="font-medium">{listings.length}</span> listings
               </div>
+              
+              {unseenCount > 0 && (
+                <button
+                  onClick={() => {/* Will be handled by changelog modal */}}
+                  className="relative px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  What's New
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+              )}
+              
+              <button
+                onClick={() => {/* Will open changelog modal */}}
+                className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Help
+              </button>
               
               {permission === 'prompt' && (
                 <button
@@ -205,6 +241,7 @@ const App: React.FC = () => {
               { key: 'regional', label: 'Regional Markets', icon: '📊' },
               { key: 'distance', label: 'Distance Calculator', icon: '📏' },
               { key: 'heatmap', label: 'Heat Map', icon: '🔥' },
+              { key: 'carbon', label: 'Carbon Credits', icon: '🌿' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -307,6 +344,10 @@ const App: React.FC = () => {
                 height="600px"
               />
             )}
+
+            {activeTab === 'carbon' && (
+              <CarbonCreditDashboard />
+            )}
           </div>
         </div>
       </main>
@@ -357,6 +398,20 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Changelog Modal */}
+      <ChangelogModal
+        isOpen={isChangelogOpen}
+        onClose={closeChangelog}
+      />
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={closeShortcutsModal}
+        shortcuts={shortcuts}
+        onShortcutUpdate={updateShortcut}
+      />
     </div>
   );
 };
