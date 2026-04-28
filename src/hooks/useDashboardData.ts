@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from './useWebSocket';
 import { DashboardData, PortfolioStats, PriceDataPoint, TradingActivity } from '../types/dashboard';
 

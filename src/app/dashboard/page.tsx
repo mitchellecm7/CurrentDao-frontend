@@ -11,6 +11,7 @@ import VideoTutorial from '@/components/help/VideoTutorial';
 import Tooltip from '@/components/onboarding/TooltipSystem';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { SyncIndicator } from '@/components/common/SyncIndicator';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardPage() {
@@ -74,6 +75,17 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* Sync Indicator */}
+      <SyncIndicator
+        queryKey={['dashboard-data']}
+        staleTime={5 * 60 * 1000} // 5 minutes
+        refetchInterval={30000} // 30 seconds
+        enableBackgroundSync={true}
+        maxRetries={3}
+        position="top-right"
+        showLabel={true}
+      />
 
       <main className="container py-8 md:py-12">
         <AnimatePresence mode="wait">
