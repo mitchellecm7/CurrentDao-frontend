@@ -7,6 +7,7 @@ import { PortfolioWidget } from "./widgets/PortfolioWidget";
 import { TreasuryWidget } from "./widgets/TreasuryWidget";
 import { CommunityWidget } from "./widgets/CommunityWidget";
 import { AnalyticsWidget } from "./widgets/AnalyticsWidget";
+import { DependencyDashboardWidget } from "./widgets/DependencyDashboardWidget";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -51,6 +52,12 @@ const availableWidgets: Widget[] = [
     type: "analytics",
     title: "Analytics",
     component: AnalyticsWidget,
+  },
+  {
+    id: "dependencies",
+    type: "dependencies",
+    title: "Dependency Security",
+    component: DependencyDashboardWidget,
   },
 ];
 
