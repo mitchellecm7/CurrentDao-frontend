@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Zap, Menu, X, Wallet, Globe } from 'lucide-react'
 import { ThemeToggle } from './theme/ThemeToggle'
+import { TransactionQueue } from './transaction/TransactionQueueSimple'
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -30,6 +31,9 @@ export function Navbar() {
             <a href="#dao" className="text-gray-600 hover:text-gray-900 transition-colors">
               DAO Governance
             </a>
+            <a href="/snapshot-voting" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Snapshot Voting
+            </a>
             <a href="/cross-border" className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1">
               <Globe className="w-4 h-4" />
               Cross-Border
@@ -51,6 +55,7 @@ export function Navbar() {
 
           {/* Wallet Connect & Mobile Menu */}
           <div className="flex items-center gap-4">
+            <TransactionQueue />
             <ThemeToggle />
             <button className="hidden sm:flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
               <Wallet className="w-4 h-4" />

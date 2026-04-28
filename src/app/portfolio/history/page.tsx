@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePortfolioAnalytics } from '../../../hooks/usePortfolioAnalytics';
+import { SyncIndicator } from '@/components/common/SyncIndicator';
 import { TradingHistory } from '../../../components/portfolio/TradingHistory';
 import { PerformanceMetrics } from '../../../components/portfolio/PerformanceMetrics';
 import { ProfitLoss } from '../../../components/portfolio/ProfitLoss';
@@ -111,6 +112,17 @@ export default function PortfolioHistoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Sync Indicator */}
+      <SyncIndicator
+        queryKey={['portfolio-analytics']}
+        staleTime={5 * 60 * 1000} // 5 minutes
+        refetchInterval={30000} // 30 seconds
+        enableBackgroundSync={true}
+        maxRetries={3}
+        position="top-right"
+        showLabel={true}
+      />
+      
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
