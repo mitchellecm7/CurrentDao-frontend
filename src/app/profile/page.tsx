@@ -166,7 +166,7 @@ export default function ProfilePage() {
                     onClick={() => setActiveTab('account')}
                     className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
                   >
-                    <Settings><span>⬆️</span>
+                    <span>⚙️</span>
                     <p className="font-medium text-gray-900 dark:text-white">Edit Profile</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Update personal info</p>
                   </button>
