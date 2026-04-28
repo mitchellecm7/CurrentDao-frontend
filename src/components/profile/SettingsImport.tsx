@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Shield, Eye, EyeOff, AlertTriangle, Plus } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ImportSelection, SettingsImportResult } from '@/types/settings-export';
 import { AccountSettings, TradingPreferences, NotificationPreferences } from '@/types/profile';
 import { SettingsImporter } from '@/utils/settings-import';
@@ -35,6 +36,12 @@ export function SettingsImport({
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationData, setConfirmationData] = useState<{
+    file: File;
+    password: string;
+    selection: ImportSelection;
+    previewData: any;
+  } | null>(null);
 
   const handleFileChange = (event: any) => {
     const selectedFile = event.target.files?.[0];
@@ -71,38 +78,63 @@ export function SettingsImport({
   const handleImport = async () => {
     if (!file || !password) return;
 
+    // Show confirmation dialog first
+    setConfirmationData({
+      file,
+      password,
+      selection,
+      previewData
+    });
+    setShowConfirmation(true);
+  };
+
+  const confirmImport = async () => {
+    if (!confirmationData) return;
+
     setIsImporting(true);
     setImportResult(null);
 
     try {
-      const result = await SettingsImporter.importSettings(file, password, selection);
+      const result = await SettingsImporter.importSettings(
+        confirmationData.file, 
+        confirmationData.password, 
+        confirmationData.selection
+      );
       setImportResult(result);
 
       if (result.success && result.importedSections) {
-        // Apply the imported settings
-        const importedData: any = {};
-        
-        if (selection.accountSettings && previewData?.accountSettings) {
-          importedData.accountSettings = previewData.accountSettings;
-        }
-        if (selection.tradingPreferences && previewData?.tradingPreferences) {
-          importedData.tradingPreferences = previewData.tradingPreferences;
-        }
-        if (selection.notificationPreferences && previewData?.notificationPreferences) {
-          importedData.notificationPreferences = previewData.notificationPreferences;
-        }
-
-        onImport(
-          importedData.accountSettings,
-          importedData.tradingPreferences,
-          importedData.notificationPreferences
+        // Get the actual imported data from import result
+        const importedData = await SettingsImporter.previewImport(
+          confirmationData.file, 
+          confirmationData.password
         );
+        
+        if (importedData.success && importedData.preview) {
+          const dataToApply: any = {};
+          
+          if (confirmationData.selection.accountSettings && importedData.preview.accountSettings) {
+            dataToApply.accountSettings = importedData.preview.accountSettings;
+          }
+          if (confirmationData.selection.tradingPreferences && importedData.preview.tradingPreferences) {
+            dataToApply.tradingPreferences = importedData.preview.tradingPreferences;
+          }
+          if (confirmationData.selection.notificationPreferences && importedData.preview.notificationPreferences) {
+            dataToApply.notificationPreferences = importedData.preview.notificationPreferences;
+          }
+
+          onImport(
+            dataToApply.accountSettings,
+            dataToApply.tradingPreferences,
+            dataToApply.notificationPreferences
+          );
+        }
 
         // Reset form
         setFile(null);
         setPassword('');
         setShowPreview(false);
         setPreviewData(null);
+        setConfirmationData(null);
       }
     } catch (error) {
       setImportResult({
@@ -434,6 +466,19 @@ export function SettingsImport({
           )}
         </div>
       )}
+    </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={confirmImport}
+        title="Confirm Import Settings"
+        message={`Are you sure you want to import selected settings? This will overwrite your existing settings for: ${confirmationData ? Object.entries(confirmationData.selection).filter(([_, selected]) => selected).map(([section]) => section).join(', ') : ''}. This action cannot be undone.`}
+        confirmText="Import Settings"
+        cancelText="Cancel"
+        type="warning"
+      />
     </div>
   );
 }

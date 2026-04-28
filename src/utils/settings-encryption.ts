@@ -1,87 +1,74 @@
 import { EncryptedSettingsExport, ExportableSettings } from '@/types/settings-export';
 
-// Simplified encryption using CryptoJS-style approach with proper type handling
 export class SettingsEncryption {
   private static readonly ITERATIONS = 100000;
-  private static readonly SALT_LENGTH = 32;
+  private static readonly SALT_LENGTH = 16;
+  private static readonly IV_LENGTH = 12;
 
   /**
-   * Convert string to base64
+   * Convert ArrayBuffer to base64 string
    */
-  private static stringToBase64(str: string): string {
-    return btoa(unescape(encodeURIComponent(str)));
+  private static arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
   }
 
   /**
-   * Convert base64 to string
+   * Convert base64 string to Uint8Array
    */
-  private static base64ToString(base64: string): string {
-    return decodeURIComponent(escape(atob(base64)));
+  private static base64ToUint8Array(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
   }
 
   /**
-   * Generate random string
+   * Generate random bytes
    */
-  private static async generateRandomString(length: number): Promise<string> {
+  private static async generateRandomBytes(length: number): Promise<Uint8Array> {
     const array = new Uint8Array(length);
     crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return array;
   }
 
   /**
-   * Simple XOR-based encryption for demonstration (in production, use proper crypto library)
+   * Derive encryption key from password using PBKDF2
    */
-  private static async xorEncrypt(data: string, key: string): Promise<string> {
-    const dataBytes = new TextEncoder().encode(data);
-    const keyBytes = new TextEncoder().encode(key.padEnd(dataBytes.length, '0').slice(0, dataBytes.length));
-    
-    const encrypted = new Uint8Array(dataBytes.length);
-    for (let i = 0; i < dataBytes.length; i++) {
-      encrypted[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
-    }
-    
-    return btoa(String.fromCharCode(...encrypted));
-  }
-
-  /**
-   * Simple XOR-based decryption for demonstration (in production, use proper crypto library)
-   */
-  private static async xorDecrypt(encryptedData: string, key: string): Promise<string> {
-    const encrypted = atob(encryptedData).split('').map(char => char.charCodeAt(0));
-    const keyBytes = new TextEncoder().encode(key);
-    
-    const decrypted = new Uint8Array(encrypted.length);
-    for (let i = 0; i < encrypted.length; i++) {
-      decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
-    }
-    
-    return new TextDecoder().decode(decrypted);
-  }
-
-  /**
-   * Derive encryption key from password
-   */
-  private static async deriveKey(password: string, salt: string): Promise<string> {
-    // Simple key derivation (in production, use PBKDF2 with Web Crypto API)
+  private static async deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     const encoder = new TextEncoder();
-    const passwordBytes = encoder.encode(password);
-    const saltBytes = encoder.encode(salt);
+    const passwordBuffer = encoder.encode(password);
     
-    let derived = new Uint8Array(passwordBytes.length + saltBytes.length);
-    derived.set(passwordBytes);
-    derived.set(saltBytes, passwordBytes.length);
-    
-    // Simple hash simulation (in production, use proper hash function)
-    let hash = '';
-    for (let i = 0; i < this.ITERATIONS; i++) {
-      const temp = new Uint8Array(derived.length);
-      for (let j = 0; j < derived.length; j++) {
-        temp[j] = (derived[j] + i) % 256;
-      }
-      derived = temp;
-    }
-    
-    return btoa(String.fromCharCode(...derived.slice(0, 32)));
+    const key = await crypto.subtle.importKey(
+      'raw',
+      passwordBuffer,
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+
+    const saltBuffer = new ArrayBuffer(salt.length);
+    const saltView = new Uint8Array(saltBuffer);
+    saltView.set(salt);
+
+    return crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: saltBuffer,
+        iterations: this.ITERATIONS,
+        hash: 'SHA-256'
+      },
+      key,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
   }
 
   /**
@@ -89,21 +76,45 @@ export class SettingsEncryption {
    */
   static async encrypt(settings: ExportableSettings, password: string): Promise<EncryptedSettingsExport> {
     try {
-      // Generate salt
-      const salt = await this.generateRandomString(this.SALT_LENGTH);
+      // Generate salt and IV
+      const salt = await this.generateRandomBytes(this.SALT_LENGTH);
+      const iv = await this.generateRandomBytes(this.IV_LENGTH);
 
       // Derive encryption key
       const key = await this.deriveKey(password, salt);
 
       // Encrypt the data
       const jsonData = JSON.stringify(settings);
-      const encryptedData = await this.xorEncrypt(jsonData, key);
+      const dataBuffer = new TextEncoder().encode(jsonData);
+      
+      // Create proper ArrayBuffers for crypto operations
+      const ivBuffer = new ArrayBuffer(iv.length);
+      const ivView = new Uint8Array(ivBuffer);
+      ivView.set(iv);
+
+      const dataArrayBuffer = new ArrayBuffer(dataBuffer.length);
+      const dataView = new Uint8Array(dataArrayBuffer);
+      dataView.set(dataBuffer);
+      
+      const encryptedBuffer = await crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv: ivBuffer
+        },
+        key,
+        dataArrayBuffer
+      );
+
+      // Create proper ArrayBuffer for salt
+      const saltBuffer = new ArrayBuffer(salt.length);
+      const saltView = new Uint8Array(saltBuffer);
+      saltView.set(salt);
 
       return {
         version: settings.version,
-        encryptedData,
-        iv: '', // Not used in this simplified version
-        salt,
+        encryptedData: this.arrayBufferToBase64(encryptedBuffer),
+        iv: this.arrayBufferToBase64(ivBuffer),
+        salt: this.arrayBufferToBase64(saltBuffer),
         timestamp: settings.timestamp
       };
     } catch (error) {
@@ -116,11 +127,34 @@ export class SettingsEncryption {
    */
   static async decrypt(encryptedExport: EncryptedSettingsExport, password: string): Promise<ExportableSettings> {
     try {
+      // Convert base64 strings to Uint8Arrays
+      const salt = this.base64ToUint8Array(encryptedExport.salt);
+      const iv = this.base64ToUint8Array(encryptedExport.iv);
+      const encryptedData = this.base64ToUint8Array(encryptedExport.encryptedData);
+
       // Derive decryption key
-      const key = await this.deriveKey(password, encryptedExport.salt);
+      const key = await this.deriveKey(password, salt);
+
+      // Create proper ArrayBuffers for crypto operations
+      const ivBuffer = new ArrayBuffer(iv.length);
+      const ivView = new Uint8Array(ivBuffer);
+      ivView.set(iv);
+
+      const encryptedBuffer = new ArrayBuffer(encryptedData.length);
+      const encryptedView = new Uint8Array(encryptedBuffer);
+      encryptedView.set(encryptedData);
 
       // Decrypt the data
-      const decryptedData = await this.xorDecrypt(encryptedExport.encryptedData, key);
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: ivBuffer
+        },
+        key,
+        encryptedBuffer
+      );
+
+      const decryptedData = new TextDecoder().decode(decryptedBuffer);
       const settings = JSON.parse(decryptedData) as ExportableSettings;
 
       return settings;
