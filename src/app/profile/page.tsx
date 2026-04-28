@@ -9,6 +9,7 @@ import { TradingPreferences } from '@/components/profile/TradingPreferences';
 import { NotificationSettings } from '@/components/profile/NotificationSettings';
 import { SecuritySettings } from '@/components/profile/SecuritySettings';
 import { AvatarUpload } from '@/components/profile/AvatarUpload';
+import { ProfileCompletionIndicator } from '@/components/profile/ProfileCompletionIndicator';
 
 type TabType = 'overview' | 'account' | 'trading' | 'notifications' | 'security';
 
@@ -27,7 +28,12 @@ export default function ProfilePage() {
     revokeSession, 
     revokeApiKey, 
     createApiKey, 
-    refreshProfile 
+    refreshProfile,
+    // Name service methods
+    resolveNameService,
+    updateStellarAddress,
+    getProfileCompletion,
+    getPublicProfileUrl
   } = useProfile();
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -43,6 +49,17 @@ export default function ProfilePage() {
 
   const handleEditProfile = () => {
     setActiveTab('account');
+  };
+
+  const handleAccountSettingsUpdate = async (settings: any) => {
+    // Handle Stellar address separately for name service resolution
+    if (settings.stellarAddress !== state.accountSettings?.stellarAddress) {
+      await updateStellarAddress(settings.stellarAddress);
+    }
+
+    // Update other account settings
+    const { stellarAddress, ...otherSettings } = settings;
+    await updateAccountSettings(otherSettings);
   };
 
   const handleAvatarUpload = async (file: File) => {
@@ -144,6 +161,10 @@ export default function ProfilePage() {
                 stats={state.stats}
                 onEdit={handleEditProfile}
               />
+
+              <ProfileCompletionIndicator
+                completionItems={getProfileCompletion()}
+              />
               
               {/* Quick Actions */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
@@ -197,7 +218,7 @@ export default function ProfilePage() {
               <div className="lg:col-span-2">
                 <AccountSettings
                   settings={state.accountSettings}
-                  onUpdate={updateAccountSettings}
+                  onUpdate={handleAccountSettingsUpdate}
                   isLoading={state.isUpdating}
                 />
               </div>

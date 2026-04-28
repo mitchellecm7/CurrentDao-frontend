@@ -11,7 +11,13 @@ export interface UserProfile {
   lastActive: string;
   isVerified: boolean;
   reputation: number;
-  level: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  level: "beginner" | "intermediate" | "advanced" | "expert";
+  // Name service integration
+  stellarAddress?: string;
+  snsName?: string; // Stellar Name Service resolved name
+  federatedAddress?: string; // Federated address (name*domain)
+  displayName?: string; // Resolved display name (SNS or federated)
+  profileCompletion: number; // 0-100 percentage
 }
 
 export interface UserStats {
@@ -35,16 +41,18 @@ export interface AccountSettings {
   timezone: string;
   language: string;
   currency: string;
+  // Name service integration
+  stellarAddress?: string;
 }
 
 export interface TradingPreferences {
-  defaultEnergyType: 'solar' | 'wind' | 'hydro' | 'geothermal' | 'biomass';
+  defaultEnergyType: "solar" | "wind" | "hydro" | "geothermal" | "biomass";
   locationRadius: number; // in kilometers
   autoAcceptTrades: boolean;
   minimumRating: number;
   priceAlerts: boolean;
   tradeNotifications: boolean;
-  preferredPaymentMethod: 'stellar' | 'crypto' | 'fiat';
+  preferredPaymentMethod: "stellar" | "crypto" | "fiat";
   maxTradeAmount: string;
   minTradeAmount: string;
 }
@@ -80,7 +88,7 @@ export interface NotificationPreferences {
 
 export interface SecuritySettings {
   twoFactorEnabled: boolean;
-  twoFactorMethod: 'sms' | 'email' | 'authenticator';
+  twoFactorMethod: "sms" | "email" | "authenticator";
   phoneNumber?: string;
   lastPasswordChange: string;
   activeSessions: Session[];
@@ -103,7 +111,7 @@ export interface ApiKey {
   id: string;
   name: string;
   key: string;
-  permissions: ('read' | 'write' | 'trade')[];
+  permissions: ("read" | "write" | "trade")[];
   createdAt: string;
   lastUsed?: string;
   isActive: boolean;
@@ -125,24 +133,50 @@ export interface ProfileContextType {
   state: ProfileState;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateAccountSettings: (settings: Partial<AccountSettings>) => Promise<void>;
-  updateTradingPreferences: (preferences: Partial<TradingPreferences>) => Promise<void>;
-  updateNotificationPreferences: (preferences: Partial<NotificationPreferences>) => Promise<void>;
-  updateSecuritySettings: (settings: Partial<SecuritySettings>) => Promise<void>;
+  updateTradingPreferences: (
+    preferences: Partial<TradingPreferences>,
+  ) => Promise<void>;
+  updateNotificationPreferences: (
+    preferences: Partial<NotificationPreferences>,
+  ) => Promise<void>;
+  updateSecuritySettings: (
+    settings: Partial<SecuritySettings>,
+  ) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  enableTwoFactor: (method: 'sms' | 'email' | 'authenticator') => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>;
+  enableTwoFactor: (method: "sms" | "email" | "authenticator") => Promise<void>;
   disableTwoFactor: () => Promise<void>;
   revokeSession: (sessionId: string) => Promise<void>;
   revokeApiKey: (keyId: string) => Promise<void>;
-  createApiKey: (name: string, permissions: ('read' | 'write' | 'trade')[]) => Promise<ApiKey>;
+  createApiKey: (
+    name: string,
+    permissions: ("read" | "write" | "trade")[],
+  ) => Promise<ApiKey>;
   refreshProfile: () => Promise<void>;
+  // Name service methods
+  resolveNameService: (address: string) => Promise<NameServiceResolution>;
+  updateStellarAddress: (address: string) => Promise<void>;
+  getProfileCompletion: () => ProfileCompletionItem[];
+  getPublicProfileUrl: (userId: string) => string;
 }
 
-export interface AvatarUploadProps {
-  currentAvatar?: string;
-  onUpload: (avatarUrl: string) => void;
-  isLoading?: boolean;
-  className?: string;
+export interface NameServiceResolution {
+  address: string;
+  name?: string;
+  type: "sns" | "federated" | "none";
+  resolvedAt: number; // timestamp
+  ttl: number; // time to live in seconds
+}
+
+export interface ProfileCompletionItem {
+  id: string;
+  label: string;
+  completed: boolean;
+  required: boolean;
+  weight: number; // percentage weight in completion
 }
 
 export interface ProfileOverviewProps {
@@ -177,10 +211,16 @@ export interface SecuritySettingsProps {
   settings: SecuritySettings;
   onUpdate: (settings: Partial<SecuritySettings>) => void;
   onPasswordChange: (currentPassword: string, newPassword: string) => void;
-  onTwoFactorToggle: (enabled: boolean, method?: 'sms' | 'email' | 'authenticator') => void;
+  onTwoFactorToggle: (
+    enabled: boolean,
+    method?: "sms" | "email" | "authenticator",
+  ) => void;
   onSessionRevoke: (sessionId: string) => void;
   onApiKeyRevoke: (keyId: string) => void;
-  onApiKeyCreate: (name: string, permissions: ('read' | 'write' | 'trade')[]) => void;
+  onApiKeyCreate: (
+    name: string,
+    permissions: ("read" | "write" | "trade")[],
+  ) => void;
   isLoading?: boolean;
   className?: string;
 }
@@ -189,7 +229,7 @@ export interface FormFieldProps {
   label: string;
   value: string | number;
   onChange: (value: string | number) => void;
-  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'textarea';
+  type?: "text" | "email" | "password" | "number" | "tel" | "url" | "textarea";
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
@@ -231,7 +271,7 @@ export interface ProfileUpdateResult {
   validationErrors?: ValidationError[];
 }
 
-export type EnergyType = 'solar' | 'wind' | 'hydro' | 'geothermal' | 'biomass';
-export type NotificationChannel = 'email' | 'push' | 'inApp';
-export type TwoFactorMethod = 'sms' | 'email' | 'authenticator';
-export type Permission = 'read' | 'write' | 'trade';
+export type EnergyType = "solar" | "wind" | "hydro" | "geothermal" | "biomass";
+export type NotificationChannel = "email" | "push" | "inApp";
+export type TwoFactorMethod = "sms" | "email" | "authenticator";
+export type Permission = "read" | "write" | "trade";

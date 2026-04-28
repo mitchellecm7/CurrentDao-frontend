@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback } from 'react';
-import { Upload, X, Camera, Loader2 } from 'lucide-react';
-import { AvatarUploadProps } from '@/types/profile';
+import { useState, useRef, useCallback } from "react";
+import { Upload, X, Camera, Loader2 } from "lucide-react";
+import { AvatarUploadProps } from "@/types/profile";
 
-export function AvatarUpload({ 
-  currentAvatar, 
-  onUpload, 
-  isLoading = false, 
-  className = '' 
+export function AvatarUpload({
+  currentAvatar,
+  onUpload,
+  isLoading = false,
+  className = "",
 }: AvatarUploadProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -16,13 +16,13 @@ export function AvatarUpload({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleFileSelect = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB');
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File size must be less than 2MB");
       return;
     }
 
@@ -33,22 +33,28 @@ export function AvatarUpload({
     reader.readAsDataURL(file);
   }, []);
 
-  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-    }
-  }, [handleFileSelect]);
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleFileSelect(file);
+      }
+    },
+    [handleFileSelect],
+  );
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileSelect(file);
-    }
-  }, [handleFileSelect]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        handleFileSelect(file);
+      }
+    },
+    [handleFileSelect],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -62,17 +68,17 @@ export function AvatarUpload({
 
   const handleUpload = useCallback(async () => {
     if (!preview || !fileInputRef.current?.files?.[0]) return;
-    
+
     setIsProcessing(true);
     try {
       const file = fileInputRef.current.files[0];
       const avatarUrl = await onUpload(file);
       setPreview(null);
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error("Upload failed:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -81,7 +87,7 @@ export function AvatarUpload({
   const handleCancel = useCallback(() => {
     setPreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   }, []);
 
@@ -163,8 +169,11 @@ export function AvatarUpload({
             <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
               {fileInputRef.current?.files?.[0] && (
                 <p>
-                  {fileInputRef.current.files[0].name} •{' '}
-                  {(fileInputRef.current.files[0].size / 1024 / 1024).toFixed(2)} MB
+                  {fileInputRef.current.files[0].name} •{" "}
+                  {(fileInputRef.current.files[0].size / 1024 / 1024).toFixed(
+                    2,
+                  )}{" "}
+                  MB
                 </p>
               )}
             </div>
@@ -189,7 +198,7 @@ export function AvatarUpload({
                     Uploading...
                   </>
                 ) : (
-                  'Upload Avatar'
+                  "Upload Avatar"
                 )}
               </button>
             </div>
@@ -205,16 +214,16 @@ export function AvatarUpload({
         onClick={handleClick}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
           isDragging
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-        } ${isLoading || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+            : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+        } ${isLoading || isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
         <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
           Drop image here or click to browse
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          PNG, JPG, GIF up to 5MB
+          PNG, JPG, GIF up to 2MB
         </p>
       </div>
 
@@ -224,7 +233,7 @@ export function AvatarUpload({
         <ul className="list-disc list-inside space-y-1 text-xs">
           <li>Use a clear photo of your face</li>
           <li>Minimum size: 200x200 pixels</li>
-          <li>Maximum file size: 5MB</li>
+          <li>Maximum file size: 2MB</li>
           <li>Supported formats: PNG, JPG, GIF</li>
           <li>Avatar will be displayed as a circle</li>
         </ul>
