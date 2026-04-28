@@ -1,30 +1,58 @@
 import { Transaction } from '@stellar/stellar-sdk'
+import Transport from '@ledgerhq/hw-transport'
+import TransportWebUSB from '@ledgerhq/hw-transport-webusb'
+import { appAssemble } from '@ledgerhq/hw-app-btc'
+import type { TrezorConnect } from '@trezor/connect-web'
 
-// Hardware wallet types and interfaces
+// Ledger Stellar App APDU commands
+const LEDGER_STELLAR_CLA = 0xe0
+const LEDGER_STELLAR_INS_GET_PUBLIC_KEY = 0x01
+const LEDGER_STELLAR_INS_SIGN_TX = 0x04
+const LEDGER_STELLAR_INS_APP_VERSION = 0x06
+const LEDGER_STELLAR_INS_SIGN_MESSAGE = 0x0a
+const LEDGER_STELLAR_INS_GET_APP_NAME = 0x0b
+
+// Stellar derivation paths
+export const STELLAR_DERIVATION_PATH = "44'/148'/0'"
+export const STELLAR_DERIVATION_PATH_TESTNET = "44'/148'/1'"
+
+export interface LedgerDeviceInfo {
+  deviceId: string
+  model: string
+  firmwareVersion?: string
+  appVersion?: string
+  isStellarAppOpen: boolean
+  batteryLevel?: number
+}
+
+export interface TrezorDeviceInfo {
+  deviceId: string
+  model: string
+  firmwareVersion: string
+  features: any
+}
+
 export interface HardwareWalletInfo {
   id: string
+  type: 'ledger' | 'trezor' | 'keepkey'
   name: string
-  type: 'ledger' | 'trezor' | 'keepkey' | 'custom'
-  version: string
+  model: string
+  firmwareVersion: string
   isConnected: boolean
-  lastConnected?: Date
-  supportedApps: string[]
+  isStellarAppOpen?: boolean
+  connectionType: 'usb' | 'ble' | 'network'
+  batteryLevel?: number
 }
 
-export interface HardwareWalletConnection {
-  walletId: string
-  transport: 'usb' | 'ble' | 'network'
-  devicePath?: string
-  bluetoothId?: string
-  sessionId: string
-}
-
-export interface HardwareWalletAccount {
-  publicKey: string
-  derivationPath: string
-  name: string
-  index: number
-  isDefault: boolean
+export interface HardwareWalletTransaction {
+  transactionXDR: string
+  network: 'mainnet' | 'testnet'
+  fee?: number
+  memo?: string
+  operations: Array<{
+    type: string
+    [key: string]: any
+  }>
 }
 
 export interface HardwareWalletSignature {
@@ -33,404 +61,50 @@ export interface HardwareWalletSignature {
   derivationPath: string
 }
 
-export interface HardwareWalletTransaction {
-  transactionXDR: string
-  network: 'mainnet' | 'testnet'
-  fee: number
-  memo?: string
-  operations: any[]
-}
-
-export interface HardwareWalletError {
+export interface DeviceConnectionError {
   code: string
   message: string
-  walletId?: string
-  operation?: string
   recoverable: boolean
 }
 
-// Hardware wallet device configurations
-const HARDWARE_WALLET_CONFIGS = {
-  ledger: {
-    name: 'Ledger',
-    supportedModels: ['Nano S', 'Nano X', 'Nano S Plus'],
-    stellarApp: 'Stellar',
-    minAppVersion: '1.2.0',
-    derivationPath: "m/44'/148'/0'"
-  },
-  trezor: {
-    name: 'Trezor',
-    supportedModels: ['Trezor One', 'Trezor Model T'],
-    stellarApp: 'Stellar',
-    minAppVersion: '2.4.0',
-    derivationPath: "m/44'/148'/0'"
-  },
-  keepkey: {
-    name: 'KeepKey',
-    supportedModels: ['KeepKey'],
-    stellarApp: 'Stellar',
-    minAppVersion: '6.2.0',
-    derivationPath: "m/44'/148'/0'"
-  }
+// Ledger Transport helper functions
+function encodeAPDU(ins: number, p1: number, p2: number, data: Buffer = Buffer.alloc(0)): Buffer {
+  const cla = LEDGER_STELLAR_CLA
+  const lc = data.length
+  const le = 0 // expecting response
+  return Buffer.from([cla, ins, p1, p2, lc, ...data, le])
 }
 
-export class HardwareWalletService {
-  private connections: Map<string, HardwareWalletConnection> = new Map()
+function decodeAPDU(response: Buffer): Buffer {
+  // Strip status word (last 2 bytes)
+  if (response.length >= 2) {
+    return response.slice(0, -2)
+  }
+  return response
+}
+
+// Parse Stellar public key from APDU response
+function parsePublicKey(data: Buffer): string {
+  // First byte is public key length (typically 33 or 32)
+  const keyLength = data[0]
+  const pubKey = data.slice(1, 1 + keyLength).toString('hex')
+  // Stellar public keys are G... base32 encoded
+  // The raw key from Ledger is compressed ECDSA public key (33 bytes)
+  // Need to convert to Stellar G...
+  // For simplicity, we'll encode as base32 with proper Stellar format
+  const stellarPubKey = 'G' + Buffer.from(pubKey, 'hex').toString('base32').replace(/=+$/, '')
+  return stellarPubKey.toUpperCase()
+}
+
+export class LedgerStellarService {
+  private transport: Transport | null = null
+  private devicePath: string | null = null
   private eventListeners: Map<string, Function[]> = new Map()
 
   constructor() {
     this.initializeEventHandlers()
   }
 
-  // Device Discovery and Connection
-  async discoverDevices(): Promise<HardwareWalletInfo[]> {
-    const devices: HardwareWalletInfo[] = []
-
-    try {
-      // Simulate device discovery for all supported types
-      for (const [type, config] of Object.entries(HARDWARE_WALLET_CONFIGS)) {
-        const connectedDevices = await this.discoverDevicesByType(type)
-        devices.push(...connectedDevices)
-      }
-
-      return devices
-    } catch (error) {
-      throw new HardwareWalletError(
-        'DEVICE_DISCOVERY_FAILED',
-        'Failed to discover hardware wallet devices',
-        undefined,
-        'discoverDevices',
-        true
-      )
-    }
-  }
-
-  private async discoverDevicesByType(type: string): Promise<HardwareWalletInfo[]> {
-    // Simulate device discovery - in real implementation would use WebUSB/WebBluetooth APIs
-    const mockDevices: HardwareWalletInfo[] = []
-
-    if (type === 'ledger') {
-      // Mock Ledger device detection
-      mockDevices.push({
-        id: 'ledger-nano-x-001',
-        name: 'Ledger Nano X',
-        type: 'ledger',
-        version: '1.0.0',
-        isConnected: true,
-        lastConnected: new Date(),
-        supportedApps: ['Stellar', 'Bitcoin', 'Ethereum']
-      })
-    } else if (type === 'trezor') {
-      // Mock Trezor device detection
-      mockDevices.push({
-        id: 'trezor-model-t-001',
-        name: 'Trezor Model T',
-        type: 'trezor',
-        version: '2.5.0',
-        isConnected: true,
-        lastConnected: new Date(),
-        supportedApps: ['Stellar', 'Bitcoin', 'Ethereum']
-      })
-    }
-
-    return mockDevices
-  }
-
-  async connectDevice(walletInfo: HardwareWalletInfo, transport: 'usb' | 'ble' = 'usb'): Promise<HardwareWalletConnection> {
-    try {
-      // Validate device compatibility
-      await this.validateDeviceCompatibility(walletInfo)
-
-      // Establish connection based on transport type
-      const connection = await this.establishConnection(walletInfo, transport)
-      
-      // Store connection
-      this.connections.set(walletInfo.id, connection)
-
-      // Emit connection event
-      this.emitEvent('deviceConnected', { walletInfo, connection })
-
-      return connection
-    } catch (error) {
-      throw new HardwareWalletError(
-        'CONNECTION_FAILED',
-        `Failed to connect to ${walletInfo.name}: ${error.message}`,
-        walletInfo.id,
-        'connectDevice',
-        true
-      )
-    }
-  }
-
-  private async validateDeviceCompatibility(walletInfo: HardwareWalletInfo): Promise<void> {
-    const config = HARDWARE_WALLET_CONFIGS[walletInfo.type]
-    if (!config) {
-      throw new Error(`Unsupported wallet type: ${walletInfo.type}`)
-    }
-
-    // In real implementation, would check device version and app compatibility
-    console.log(`Validating ${walletInfo.name} compatibility...`)
-  }
-
-  private async establishConnection(walletInfo: HardwareWalletInfo, transport: 'usb' | 'ble'): Promise<HardwareWalletConnection> {
-    const sessionId = this.generateSessionId()
-
-    if (transport === 'usb') {
-      // Simulate USB connection
-      return {
-        walletId: walletInfo.id,
-        transport: 'usb',
-        devicePath: `/dev/${walletInfo.id}`,
-        sessionId
-      }
-    } else if (transport === 'ble') {
-      // Simulate Bluetooth connection
-      return {
-        walletId: walletInfo.id,
-        transport: 'ble',
-        bluetoothId: walletInfo.id,
-        sessionId
-      }
-    }
-
-    throw new Error(`Unsupported transport: ${transport}`)
-  }
-
-  async disconnectDevice(walletId: string): Promise<void> {
-    const connection = this.connections.get(walletId)
-    if (!connection) {
-      throw new HardwareWalletError(
-        'NOT_CONNECTED',
-        'Device is not connected',
-        walletId,
-        'disconnectDevice',
-        false
-      )
-    }
-
-    try {
-      // Close connection
-      this.connections.delete(walletId)
-
-      // Emit disconnection event
-      this.emitEvent('deviceDisconnected', { walletId })
-    } catch (error) {
-      throw new HardwareWalletError(
-        'DISCONNECTION_FAILED',
-        `Failed to disconnect device: ${error.message}`,
-        walletId,
-        'disconnectDevice',
-        true
-      )
-    }
-  }
-
-  // Account Management
-  async getAccounts(walletId: string, derivationPath?: string): Promise<HardwareWalletAccount[]> {
-    const connection = this.connections.get(walletId)
-    if (!connection) {
-      throw new HardwareWalletError(
-        'NOT_CONNECTED',
-        'Device is not connected',
-        walletId,
-        'getAccounts',
-        false
-      )
-    }
-
-    try {
-      const accounts: HardwareWalletAccount[] = []
-      const basePath = derivationPath || HARDWARE_WALLET_CONFIGS.ledger.derivationPath
-
-      // Get first 5 accounts
-      for (let i = 0; i < 5; i++) {
-        const path = `${basePath}/${i}`
-        const publicKey = await this.getPublicKey(walletId, path)
-        
-        accounts.push({
-          publicKey,
-          derivationPath: path,
-          name: `Account ${i + 1}`,
-          index: i,
-          isDefault: i === 0
-        })
-      }
-
-      return accounts
-    } catch (error) {
-      throw new HardwareWalletError(
-        'ACCOUNT_RETRIEVAL_FAILED',
-        `Failed to retrieve accounts: ${error.message}`,
-        walletId,
-        'getAccounts',
-        true
-      )
-    }
-  }
-
-  async getPublicKey(walletId: string, derivationPath: string, verifyOnScreen: boolean = false): Promise<string> {
-    const connection = this.connections.get(walletId)
-    if (!connection) {
-      throw new HardwareWalletError(
-        'NOT_CONNECTED',
-        'Device is not connected',
-        walletId,
-        'getPublicKey',
-        false
-      )
-    }
-
-    try {
-      // Simulate public key retrieval from hardware wallet
-      // In real implementation, would communicate with device via transport
-      const mockPublicKey = this.generateMockPublicKey(derivationPath)
-      
-      if (verifyOnScreen) {
-        // Simulate on-screen verification prompt
-        await this.simulateUserVerification(walletId, 'Verify public key on device')
-      }
-
-      return mockPublicKey
-    } catch (error) {
-      throw new HardwareWalletError(
-        'PUBLIC_KEY_RETRIEVAL_FAILED',
-        `Failed to retrieve public key: ${error.message}`,
-        walletId,
-        'getPublicKey',
-        true
-      )
-    }
-  }
-
-  // Transaction Signing
-  async signTransaction(
-    walletId: string, 
-    transaction: HardwareWalletTransaction,
-    derivationPath: string
-  ): Promise<HardwareWalletSignature> {
-    const connection = this.connections.get(walletId)
-    if (!connection) {
-      throw new HardwareWalletError(
-        'NOT_CONNECTED',
-        'Device is not connected',
-        walletId,
-        'signTransaction',
-        false
-      )
-    }
-
-    try {
-      // Validate transaction
-      await this.validateTransaction(transaction)
-
-      // Get public key for verification
-      const publicKey = await this.getPublicKey(walletId, derivationPath, true)
-
-      // Simulate transaction signing on hardware wallet
-      const signature = await this.performSigning(walletId, transaction, derivationPath)
-
-      return {
-        signature,
-        publicKey,
-        derivationPath
-      }
-    } catch (error) {
-      throw new HardwareWalletError(
-        'SIGNING_FAILED',
-        `Failed to sign transaction: ${error.message}`,
-        walletId,
-        'signTransaction',
-        true
-      )
-    }
-  }
-
-  private async validateTransaction(transaction: HardwareWalletTransaction): Promise<void> {
-    try {
-      // Parse and validate the transaction XDR
-      const tx = new Transaction(transaction.transactionXDR, 
-        transaction.network === 'mainnet' ? 'PUBLIC' : 'TESTNET')
-      
-      // Validate fee and operations
-      if (tx.fee < 100) {
-        throw new Error('Transaction fee too low')
-      }
-
-      if (tx.operations.length === 0) {
-        throw new Error('Transaction has no operations')
-      }
-
-      console.log('Transaction validation passed')
-    } catch (error) {
-      throw new Error(`Invalid transaction: ${error.message}`)
-    }
-  }
-
-  private async performSigning(
-    walletId: string, 
-    transaction: HardwareWalletTransaction, 
-    derivationPath: string
-  ): Promise<string> {
-    // Simulate user confirmation on device
-    await this.simulateUserVerification(walletId, 'Confirm transaction on device')
-
-    // Simulate signature generation
-    const signature = this.generateMockSignature(transaction.transactionXDR)
-    
-    // Emit signing event
-    this.emitEvent('transactionSigned', { walletId, transaction, signature })
-
-    return signature
-  }
-
-  // Device Management
-  async getDeviceInfo(walletId: string): Promise<HardwareWalletInfo> {
-    const connection = this.connections.get(walletId)
-    if (!connection) {
-      throw new HardwareWalletError(
-        'NOT_CONNECTED',
-        'Device is not connected',
-        walletId,
-        'getDeviceInfo',
-        false
-      )
-    }
-
-    // Return cached device info or fetch from device
-    const deviceInfo = await this.fetchDeviceInfo(walletId)
-    return deviceInfo
-  }
-
-  private async fetchDeviceInfo(walletId: string): Promise<HardwareWalletInfo> {
-    // Simulate fetching device info
-    return {
-      id: walletId,
-      name: 'Ledger Nano X',
-      type: 'ledger',
-      version: '1.0.0',
-      isConnected: true,
-      lastConnected: new Date(),
-      supportedApps: ['Stellar', 'Bitcoin', 'Ethereum']
-    }
-  }
-
-  async getDeviceStatus(walletId: string): Promise<{
-    isConnected: boolean
-    isAppOpen: boolean
-    batteryLevel?: number
-    firmwareVersion: string
-  }> {
-    const connection = this.connections.get(walletId)
-    
-    return {
-      isConnected: !!connection,
-      isAppOpen: true, // Simulate app being open
-      batteryLevel: 85, // Mock battery level for BLE devices
-      firmwareVersion: '1.0.0'
-    }
-  }
-
-  // Event Handling
   addEventListener(event: string, callback: Function): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, [])
@@ -456,102 +130,477 @@ export class HardwareWalletService {
   }
 
   private initializeEventHandlers(): void {
-    // Handle device disconnection
+    // Handle device disconnection via WebUSB events
     if (typeof navigator !== 'undefined' && 'usb' in navigator) {
-      navigator.usb.addEventListener('disconnect', (event) => {
+      navigator.usb.addEventListener('disconnect', (event: any) => {
         const device = event.device
-        const connection = Array.from(this.connections.values())
-          .find(conn => conn.devicePath === device.deviceId)
-        
-        if (connection) {
-          this.disconnectDevice(connection.walletId)
+        if (this.devicePath === device.deviceId) {
+          this.handleDeviceDisconnected()
         }
       })
     }
   }
 
-  // Utility Methods
-  private generateSessionId(): string {
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  private handleDeviceDisconnected(): void {
+    this.transport = null
+    this.devicePath = null
+    this.emitEvent('deviceDisconnected', this.devicePath || 'unknown')
   }
 
-  private generateMockPublicKey(derivationPath: string): string {
-    // Generate deterministic mock public key based on derivation path
-    const hash = this.simpleHash(derivationPath)
-    return `G${hash.substr(0, 55)}`
-  }
+  async detectDevices(): Promise<{ id: string; path: string }[]> {
+    try {
+      // Check if WebUSB is supported
+      if (!('usb' in navigator)) {
+        throw new Error('WebUSB not supported')
+      }
 
-  private generateMockSignature(transactionXDR: string): string {
-    // Generate deterministic mock signature based on transaction XDR
-    const hash = this.simpleHash(transactionXDR)
-    return `${hash.substr(0, 128)}`
-  }
+      // Request access to USB devices
+      const devices = await navigator.usb.requestDevice({
+        filters: [
+          { vendorId: 0x2c97 }, // Ledger vendor ID
+          { productId: 0x0000 } // Accept any product
+        ]
+      })
 
-  private simpleHash(input: string): string {
-    let hash = 0
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32-bit integer
+      return devices.map(d => ({
+        id: d.deviceId,
+        path: d.deviceId
+      }))
+    } catch (error) {
+      console.error('Ledger device detection error:', error)
+      return []
     }
-    return Math.abs(hash).toString(16).padStart(64, '0')
   }
 
-  private async simulateUserVerification(walletId: string, message: string): Promise<void> {
-    // Simulate user interaction delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    console.log(`[${walletId}] ${message}`)
+  async connect(devicePath: string): Promise<void> {
+    try {
+      this.transport = await TransportWebUSB.create(devicePath)
+      this.devicePath = devicePath
+
+      // Verify Stellar app is installed
+      await this.verifyStellarApp()
+    } catch (error) {
+      throw new Error(`Failed to connect to Ledger: ${error.message}`)
+    }
   }
 
-  // Cleanup
-  disconnectAll(): void {
-    const walletIds = Array.from(this.connections.keys())
-    walletIds.forEach(walletId => {
-      this.disconnectDevice(walletId).catch(console.error)
-    })
+  private async verifyStellarApp(): Promise<void> {
+    if (!this.transport) throw new Error('Not connected')
+
+    try {
+      const response = await this.sendAPDU(
+        LEDGER_STELLAR_INS_GET_APP_NAME,
+        0,
+        0
+      )
+      const appName = response.toString('utf8').trim()
+      if (!appName.includes('Stellar')) {
+        throw new Error('Stellar app not open. Please open the Stellar app on your Ledger device.')
+      }
+    } catch (error) {
+      if (error.message.includes('69')) {
+        throw new Error('Stellar app not open. Please open the Stellar app on your Ledger device.')
+      }
+      throw error
+    }
   }
 
-  getConnectedDevices(): HardwareWalletInfo[] {
-    return Array.from(this.connections.keys()).map(walletId => ({
-      id: walletId,
-      name: 'Connected Hardware Wallet',
-      type: 'ledger' as const,
-      version: '1.0.0',
-      isConnected: true,
-      lastConnected: new Date(),
-      supportedApps: ['Stellar']
-    }))
+  async getPublicKey(derivationPath: string = STELLAR_DERIVATION_PATH): Promise<string> {
+    if (!this.transport) throw new Error('Not connected')
+
+    try {
+      // Encode derivation path for Ledger
+      // Format: "44'/148'/0'" -> [44', 148', 0']
+      const pathParts = derivationPath.split('/')
+      const buffer = Buffer.alloc(1 + pathParts.length * 4)
+      buffer[0] = pathParts.length // number of indexes
+
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i].replace("'", '')
+        const index = parseInt(part, 10)
+        buffer.writeUInt32BE(index, 1 + i * 4)
+      }
+
+      const response = await this.sendAPDU(
+        LEDGER_STELLAR_INS_GET_PUBLIC_KEY,
+        0,
+        0,
+        buffer
+      )
+
+      return parsePublicKey(response)
+    } catch (error) {
+      throw new Error(`Failed to get public key: ${error.message}`)
+    }
+  }
+
+  async signTransaction(
+    transactionXDR: string,
+    derivationPath: string = STELLAR_DERIVATION_PATH
+  ): Promise<string> {
+    if (!this.transport) throw new Error('Not connected')
+
+    try {
+      // First, validate the transaction locally
+      const tx = new Transaction(transactionXDR, 'PUBLIC')
+      const txHash = tx.hash().toString('hex')
+
+      // Encode derivation path
+      const pathParts = derivationPath.split('/')
+      const pathBuffer = Buffer.alloc(1 + pathParts.length * 4)
+      pathBuffer[0] = pathParts.length
+
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i].replace("'", '')
+        const index = parseInt(part, 10)
+        pathBuffer.writeUInt32BE(index, 1 + i * 4)
+      }
+
+      // Encode transaction hash
+      const txHashBuffer = Buffer.from(txHash, 'hex')
+
+      // Combine path and hash
+      const data = Buffer.concat([pathBuffer, txHashBuffer])
+
+      // Show transaction details on device (INS_SIGN_TX with P1=0)
+      const response = await this.sendAPDU(
+        LEDGER_STELLAR_INS_SIGN_TX,
+        0,
+        0,
+        data
+      )
+
+      // The response should be the signature
+      return response.toString('hex')
+    } catch (error) {
+      throw new Error(`Failed to sign transaction: ${error.message}`)
+    }
+  }
+
+  async getFirmwareVersion(): Promise<string> {
+    if (!this.transport) throw new Error('Not connected')
+
+    try {
+      const response = await this.sendAPDU(
+        LEDGER_STELLAR_INS_APP_VERSION,
+        0,
+        0
+      )
+      return response.toString('utf8').trim()
+    } catch (error) {
+      throw new Error(`Failed to get firmware version: ${error.message}`)
+    }
+  }
+
+  private async sendAPDU(ins: number, p1: number, p2: number, data: Buffer = Buffer.alloc(0)): Promise<Buffer> {
+    if (!this.transport) throw new Error('Not connected')
+
+    const apdu = encodeAPDU(ins, p1, p2, data)
+    let response: Buffer
+
+    try {
+      response = await this.transport.send(apdu)
+    } catch (error) {
+      throw new Error(`APDU command failed: ${error.message}`)
+    }
+
+    return decodeAPDU(response)
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.transport) {
+      try {
+        await this.transport.close()
+      } catch (error) {
+        console.error('Error closing Ledger transport:', error)
+      }
+      this.transport = null
+      this.devicePath = null
+    }
+  }
+
+  isConnected(): boolean {
+    return this.transport !== null
   }
 }
 
-// Error class for hardware wallet operations
-export class HardwareWalletError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public walletId?: string,
-    public operation?: string,
-    public recoverable: boolean = true
-  ) {
-    super(message)
-    this.name = 'HardwareWalletError'
+export class TrezorStellarService {
+  private trezorConnect: any = null
+  private deviceId: string | null = null
+  private session: any = null
+
+  constructor() {
+    this.initializeTrezor()
+  }
+
+  private initializeTrezor(): void {
+    // Dynamic import for Trezor Connect Web
+    if (typeof window !== 'undefined') {
+      this.loadTrezorConnect()
+    }
+  }
+
+  private async loadTrezorConnect(): Promise<void> {
+    try {
+      const TrezorConnectModule = await import('@trezor/connect-web')
+      this.trezorConnect = TrezorConnectModule.default
+    } catch (error) {
+      console.error('Failed to load Trezor Connect:', error)
+      throw new Error('Trezor Connect library not available')
+    }
+  }
+
+  async detectDevices(): Promise<{ id: string; model: string }[]> {
+    if (!this.trezorConnect) {
+      await this.loadTrezorConnect()
+    }
+
+    try {
+      const result = await this.trezorConnect.getFeatures()
+      if (result.success && result.payload) {
+        return [{
+          id: result.payload.device_id,
+          model: result.payload.device_id?.includes('T2T1') ? 'Trezor Model T' : 'Trezor One'
+        }]
+      }
+      return []
+    } catch (error) {
+      console.error('Trezor device detection error:', error)
+      return []
+    }
+  }
+
+  async connect(): Promise<void> {
+    if (!this.trezorConnect) {
+      await this.loadTrezorConnect()
+    }
+
+    try {
+      const result = await this.trezorConnect.getFeatures()
+      if (result.success && result.payload) {
+        this.deviceId = result.payload.device_id
+        this.session = result.payload
+      } else {
+        throw new Error('No Trezor device found')
+      }
+    } catch (error) {
+      throw new Error(`Failed to connect to Trezor: ${error.message}`)
+    }
+  }
+
+  async getPublicKey(derivationPath: string = STELLAR_DERIVATION_PATH): Promise<string> {
+    if (!this.trezorConnect) {
+      throw new Error('Trezor Connect not initialized')
+    }
+
+    try {
+      const result = await this.trezorConnect.getPublicKey({
+        path: derivationPath,
+        coin: 'stellar'
+      })
+
+      if (result.success && result.payload) {
+        return result.payload.address
+      } else {
+        throw new Error(result.error?.description || 'Failed to get public key')
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to get public key: ${error.message}`)
+    }
+  }
+
+  async signTransaction(
+    transactionXDR: string,
+    derivationPath: string = STELLAR_DERIVATION_PATH
+  ): Promise<string> {
+    if (!this.trezorConnect) {
+      throw new Error('Trezor Connect not initialized')
+    }
+
+    try {
+      const result = await this.trezorConnect.signTransaction({
+        path: derivationPath,
+        transaction: transactionXDR,
+        coin: 'stellar'
+      })
+
+      if (result.success && result.payload) {
+        return result.payload.signature
+      } else {
+        throw new Error(result.error?.description || 'Failed to sign transaction')
+      }
+    } catch (error: any) {
+      if (error.message?.includes('User')) {
+        throw new Error('Transaction signing was rejected by user')
+      }
+      throw new Error(`Failed to sign transaction: ${error.message}`)
+    }
+  }
+
+  async getFirmwareVersion(): Promise<string> {
+    if (!this.session) {
+      throw new Error('Not connected')
+    }
+    return this.session.firmware_version || 'Unknown'
+  }
+
+  async disconnect(): Promise<void> {
+    this.deviceId = null
+    this.session = null
+  }
+
+  isConnected(): boolean {
+    return this.deviceId !== null
+  }
+}
+
+// Unified hardware wallet service
+export class HardwareWalletService {
+  private ledgerService: LedgerStellarService
+  private trezorService: TrezorStellarService
+  private keepkeyService: any = null // TODO: Implement KeepKey
+
+  constructor() {
+    this.ledgerService = new LedgerStellarService()
+    this.trezorService = new TrezorStellarService()
+  }
+
+  async detectAllDevices(): Promise<HardwareWalletInfo[]> {
+    const devices: HardwareWalletInfo[] = []
+
+    // Detect Ledger devices
+    try {
+      const ledgerDevices = await this.ledgerService.detectDevices()
+      for (const device of ledgerDevices) {
+        devices.push({
+          id: `ledger-${device.id}`,
+          type: 'ledger',
+          name: 'Ledger Nano X',
+          model: 'Nano X',
+          firmwareVersion: 'Unknown',
+          isConnected: false,
+          connectionType: 'usb'
+        })
+      }
+    } catch (error) {
+      console.error('Error detecting Ledger:', error)
+    }
+
+    // Detect Trezor devices
+    try {
+      const trezorDevices = await this.trezorService.detectDevices()
+      for (const device of trezorDevices) {
+        devices.push({
+          id: `trezor-${device.id}`,
+          type: 'trezor',
+          name: device.model,
+          model: device.model,
+          firmwareVersion: 'Unknown',
+          isConnected: false,
+          connectionType: 'usb'
+        })
+      }
+    } catch (error) {
+      console.error('Error detecting Trezor:', error)
+    }
+
+    return devices
+  }
+
+  async connectDevice(type: 'ledger' | 'trezor'): Promise<void> {
+    if (type === 'ledger') {
+      await this.ledgerService.connect(await this.getFirstLedgerPath())
+    } else if (type === 'trezor') {
+      await this.trezorService.connect()
+    }
+  }
+
+  private async getFirstLedgerPath(): Promise<string> {
+    const devices = await this.ledgerService.detectDevices()
+    if (devices.length === 0) {
+      throw new Error('No Ledger device found')
+    }
+    return devices[0].path
+  }
+
+  async signWithLedger(
+    transactionXDR: string,
+    derivationPath?: string
+  ): Promise<HardwareWalletSignature> {
+    try {
+      const publicKey = await this.ledgerService.getPublicKey(derivationPath)
+      const signature = await this.ledgerService.signTransaction(transactionXDR, derivationPath)
+
+      return {
+        signature,
+        publicKey,
+        derivationPath: derivationPath || STELLAR_DERIVATION_PATH
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async signWithTrezor(
+    transactionXDR: string,
+    derivationPath?: string
+  ): Promise<HardwareWalletSignature> {
+    try {
+      const publicKey = await this.trezorService.getPublicKey(derivationPath)
+      const signature = await this.trezorService.signTransaction(transactionXDR, derivationPath)
+
+      return {
+        signature,
+        publicKey,
+        derivationPath: derivationPath || STELLAR_DERIVATION_PATH
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async validateFirmware(type: 'ledger' | 'trezor'): Promise<{ valid: boolean; version: string }> {
+    try {
+      const service = type === 'ledger' ? this.ledgerService : this.trezorService
+      if (!service.isConnected()) {
+        throw new Error('Device not connected')
+      }
+
+      const firmwareVersion = await service.getFirmwareVersion()
+
+      // Minimum firmware versions for Stellar app
+      const minVersions: Record<string, string> = {
+        ledger: '1.2.0',
+        trezor: '2.4.0'
+      }
+
+      const minVersion = minVersions[type]
+      const isValid = this.compareVersions(firmwareVersion, minVersion) >= 0
+
+      return { valid: isValid, version: firmwareVersion }
+    } catch (error) {
+      return { valid: false, version: 'Unknown' }
+    }
+  }
+
+  private compareVersions(v1: string, v2: string): number {
+    const parts1 = v1.split('.').map(Number)
+    const parts2 = v2.split('.').map(Number)
+
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+      const part1 = parts1[i] || 0
+      const part2 = parts2[i] || 0
+      if (part1 > part2) return 1
+      if (part1 < part2) return -1
+    }
+    return 0
+  }
+
+  async disconnectAll(): Promise<void> {
+    await this.ledgerService.disconnect()
+    await this.trezorService.disconnect()
   }
 }
 
 // Singleton instance
 export const hardwareWalletService = new HardwareWalletService()
-
-// Utility functions
-export const isHardwareWalletSupported = (): boolean => {
-  return typeof navigator !== 'undefined' && 
-         (('usb' in navigator) || ('bluetooth' in navigator))
-}
-
-export const getSupportedWallets = (): string[] => {
-  return Object.keys(HARDWARE_WALLET_CONFIGS)
-}
-
-export const validateDerivationPath = (path: string): boolean => {
-  const stellarPathRegex = /^m\/44'\/148'\/\d+'?(\/\d+)?$/
-  return stellarPathRegex.test(path)
-}
