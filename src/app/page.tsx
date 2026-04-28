@@ -19,6 +19,7 @@ import { WalletConnect } from '@/components/WalletConnect'
 import { ServiceWorkerRegistration } from '@/offline/components/ServiceWorkerRegistration'
 import { OfflineIndicator } from '@/offline/components/OfflineIndicator'
 import { MarketForecasting } from '@/components/forecasting/MarketForecasting'
+import { ChatbotWidget } from '@/components/support/ChatbotWidget'
 
 export default function HomePage() {
   const { data: stats } = useQuery({
@@ -171,6 +172,9 @@ export default function HomePage() {
           </div>
         </div>
       </motion.section>
+      
+      {/* Chatbot Widget */}
+      <ChatbotWidget />
     </div>
   )
 }
