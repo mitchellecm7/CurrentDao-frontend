@@ -3,6 +3,7 @@ import { Portfolio, PortfolioAnalytics } from '../types/portfolio';
 import { PerformanceCalculator } from '../services/portfolio/performance-calculator';
 import { RiskModels } from '../services/portfolio/risk-models';
 import { DiversificationAnalysis } from '../utils/portfolio/diversification-analysis';
+import { DrawdownCalculator } from '../services/portfolio/drawdown-calculator';
 
 export const usePortfolioManagement = (portfolioId: string) => {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -39,6 +40,14 @@ export const usePortfolioManagement = (portfolioId: string) => {
     const metrics = PerformanceCalculator.calculateMetrics(portfolio);
     const pnl = PerformanceCalculator.calculatePnL(portfolio);
     const allocation = DiversificationAnalysis.analyze(portfolio);
+    
+    // Generate mock historical values for drawdown calculation
+    const historicalValues = DrawdownCalculator.generateMockHistoricalValues(portfolio);
+    const drawdownAnalysis = DrawdownCalculator.calculateDrawdownAnalysis(
+      portfolio, 
+      historicalValues,
+      [10, 20, 30] // Alert thresholds at 10%, 20%, 30%
+    );
 
     return {
       portfolio,
@@ -60,7 +69,8 @@ export const usePortfolioManagement = (portfolioId: string) => {
         taxLiability: 0
       },
       taxReports: [],
-      benchmarks: []
+      benchmarks: [],
+      drawdownAnalysis
     };
   }, [portfolio]);
 

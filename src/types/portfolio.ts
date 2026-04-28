@@ -46,6 +46,7 @@ export interface PerformanceMetrics {
   sharpeRatio: number;
   volatility: number;
   maxDrawdown: number;
+  maxDrawdownDollar: number;
   beta: number;
   alpha: number;
   winRate: number;
@@ -57,6 +58,52 @@ export interface PerformanceMetrics {
   totalTrades: number;
   winningTrades: number;
   losingTrades: number;
+}
+
+export interface DrawdownData {
+  timestamp: Date;
+  portfolioValue: number;
+  drawdown: number;
+  drawdownPercentage: number;
+  isUnderwater: boolean;
+  peakValue: number;
+  daysSincePeak: number;
+}
+
+export interface DrawdownPeriod {
+  startDate: Date;
+  endDate: Date;
+  startValue: number;
+  endValue: number;
+  peakValue: number;
+  troughValue: number;
+  drawdownAmount: number;
+  drawdownPercentage: number;
+  duration: number;
+  recoveryTime: number;
+  recovered: boolean;
+}
+
+export interface DrawdownAlert {
+  id: string;
+  threshold: number;
+  currentValue: number;
+  triggeredAt: Date;
+  acknowledged: boolean;
+}
+
+export interface DrawdownAnalysis {
+  currentDrawdown: number;
+  currentDrawdownDollar: number;
+  maxDrawdown: number;
+  maxDrawdownDollar: number;
+  maxDrawdownDate: Date;
+  averageDrawdown: number;
+  drawdownPeriods: DrawdownPeriod[];
+  underwaterDays: number;
+  recoveryDays: number;
+  alerts: DrawdownAlert[];
+  timeSeries: DrawdownData[];
 }
 
 export interface ProfitLossData {
@@ -124,6 +171,7 @@ export interface PortfolioAnalytics {
   statistics: TradingStatistics;
   taxReports: TaxReport[];
   benchmarks: BenchmarkComparison[];
+  drawdownAnalysis?: DrawdownAnalysis;
 }
 
 export interface ExportOptions {

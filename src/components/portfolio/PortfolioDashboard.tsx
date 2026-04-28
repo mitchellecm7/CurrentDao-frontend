@@ -3,6 +3,8 @@ import { usePortfolioManagement } from '../../hooks/usePortfolioManagement';
 import { PerformanceMetrics } from './PerformanceMetrics';
 import { RiskAssessment } from './RiskAssessment';
 import { RebalancingTools } from './RebalancingTools';
+import { DrawdownAnalysisComponent } from './DrawdownAnalysis';
+import { DrawdownBenchmarkComparison } from './DrawdownBenchmarkComparison';
 
 export const PortfolioDashboard: React.FC = () => {
   const { portfolio, analytics, riskAssessment, isLoading, rebalancingSuggestions } = usePortfolioManagement('default-portfolio');
@@ -61,6 +63,36 @@ export const PortfolioDashboard: React.FC = () => {
           </div>
           
           <PerformanceMetrics metrics={analytics.metrics} />
+          
+          {/* Drawdown Analysis Section */}
+          {analytics.drawdownAnalysis && (
+            <>
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-3xl overflow-hidden">
+                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                  <h3 className="font-bold uppercase tracking-widest text-xs text-gray-400">Drawdown Analysis</h3>
+                  <button className="text-[10px] font-bold text-blue-400 hover:text-blue-300">DETAILS →</button>
+                </div>
+                <div className="p-6">
+                  <DrawdownAnalysisComponent 
+                    drawdownAnalysis={analytics.drawdownAnalysis} 
+                    portfolioValue={portfolio.totalValue}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-3xl overflow-hidden">
+                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                  <h3 className="font-bold uppercase tracking-widest text-xs text-gray-400">Benchmark Comparison</h3>
+                  <button className="text-[10px] font-bold text-blue-400 hover:text-blue-300">DETAILS →</button>
+                </div>
+                <div className="p-6">
+                  <DrawdownBenchmarkComparison 
+                    drawdownAnalysis={analytics.drawdownAnalysis}
+                  />
+                </div>
+              </div>
+            </>
+          )}
           
           <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-3xl overflow-hidden">
             <div className="p-6 border-b border-white/5 flex justify-between items-center">
