@@ -24,6 +24,7 @@ import { ChangelogModal } from './components/changelog/ChangelogModal';
 import { KeyboardShortcutsModal } from './components/shortcuts/KeyboardShortcutsModal';
 import { CarbonCreditDashboard } from './components/carbon/CarbonCreditDashboard';
 import { OrderFlowImbalance } from './components/orderbook/OrderFlowImbalance';
+import StakingDashboard from './components/dashboard/StakingDashboard';
 
 // Sample data generator for demonstration
 const generateSampleListings = (count: number): EnergyListing[] => {
@@ -87,7 +88,7 @@ const App: React.FC = () => {
   const [selectedListing, setSelectedListing] = useState<EnergyListing | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<RegionalMarketData | null>(null);
   const [locationFilters, setLocationFilters] = useState<LocationFilter[]>([]);
-  const [activeTab, setActiveTab] = useState<'map' | 'regional' | 'distance' | 'heatmap' | 'carbon'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'regional' | 'distance' | 'heatmap' | 'carbon' | 'staking'>('map');
 
   // Hooks
   const { location: userLocation, requestLocation, permission } = useGeolocation();
@@ -243,6 +244,7 @@ const App: React.FC = () => {
               { key: 'distance', label: 'Distance Calculator', icon: '📏' },
               { key: 'heatmap', label: 'Heat Map', icon: '🔥' },
               { key: 'carbon', label: 'Carbon Credits', icon: '🌿' },
+              { key: 'staking', label: 'Staking Dashboard', icon: '💰' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -357,6 +359,10 @@ const App: React.FC = () => {
                   showPerAssetBreakdown={true}
                 />
               </div>
+            )}
+
+            {activeTab === 'staking' && (
+              <StakingDashboard />
             )}
           </div>
         </div>
