@@ -23,6 +23,7 @@ import { PWAInstallPrompt } from './components/pwa/PWAInstallPrompt';
 import { ChangelogModal } from './components/changelog/ChangelogModal';
 import { KeyboardShortcutsModal } from './components/shortcuts/KeyboardShortcutsModal';
 import { CarbonCreditDashboard } from './components/carbon/CarbonCreditDashboard';
+import { OrderFlowImbalance } from './components/orderbook/OrderFlowImbalance';
 
 // Sample data generator for demonstration
 const generateSampleListings = (count: number): EnergyListing[] => {
@@ -347,6 +348,15 @@ const App: React.FC = () => {
 
             {activeTab === 'carbon' && (
               <CarbonCreditDashboard />
+              
+              <div className="mt-8">
+                <OrderFlowImbalance 
+                  symbol="BTC/USD"
+                  alertThreshold={70}
+                  showHistoricalOverlay={true}
+                  showPerAssetBreakdown={true}
+                />
+              </div>
             )}
           </div>
         </div>
