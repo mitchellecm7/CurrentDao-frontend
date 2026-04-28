@@ -128,6 +128,8 @@ export const usePortfolioAnalytics = (options: UsePortfolioAnalyticsOptions = {}
     }
   };
 
+
+
   const calculateAnalytics = useCallback(async (tradesData: Trade[], pricesData: Record<string, number>) => {
     try {
       const filteredTrades = filterTrades(tradesData, filter);

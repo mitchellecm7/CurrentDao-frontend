@@ -55,7 +55,7 @@ export interface WalletContextType {
   sendTransaction: (destination: string, amount: string, asset?: string) => Promise<string>;
 }
 
-export type WalletType = 'freighter' | 'albedo';
+export type WalletType = 'freighter' | 'albedo' | 'ledger' | 'trezor' | 'keepkey';
 
 export interface WalletConnectorProps {
   onConnect?: (wallet: WalletInfo) => void;
@@ -204,6 +204,20 @@ export interface WalletMetadata {
   icon?: string
   customName?: string
   notes?: string
+  // Hardware wallet specific fields
+  deviceId?: string
+  firmwareVersion?: string
+  connectionType?: 'usb' | 'ble' | 'network'
+  model?: string
+  derivationPath?: string
+  // Ledger specific
+  ledgerAppVersion?: string
+  // Trezor specific
+  trezorFeatures?: {
+    hasPassphrase: boolean
+    hasPin: boolean
+    usesKeychain: boolean
+  }
 }
 
 export interface WalletSettings {
@@ -324,6 +338,30 @@ export interface MultiWalletContextType {
   // Search and Filter
   searchWallets: (query: string) => MultiWallet[]
   filterWallets: (filters: WalletFilters) => MultiWallet[]
+
+  // Hardware Wallet Operations
+  detectHardwareWallets: () => Promise<Array<{
+    id: string
+    type: 'ledger' | 'trezor' | 'keepkey'
+    name: string
+    model: string
+    firmwareVersion?: string
+    isConnected: boolean
+    connectionType: 'usb' | 'ble' | 'network'
+  }>>
+  connectHardwareWallet: (
+    walletId: string, 
+    type: 'ledger' | 'trezor',
+    derivationPath?: string
+  ) => Promise<void>
+  signTransactionWithHardwareWallet: (
+    walletId: string,
+    transactionXDR: string,
+    derivationPath?: string
+  ) => Promise<string>
+  validateHardwareWalletFirmware: (
+    walletId: string
+  ) => Promise<{ valid: boolean; version: string }>
 }
 
 export interface WalletFilters {

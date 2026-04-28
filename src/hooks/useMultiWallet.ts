@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import { 
   MultiWallet,
   WalletGroup,
@@ -30,6 +31,7 @@ import {
   calculateTotalBalance,
   getWalletHealthScore
 } from '@/utils/multiWalletHelpers'
+import { hardwareWalletService, STELLAR_DERIVATION_PATH } from '@/services/wallets/hardware-integration'
 
 // Mock data for demonstration
 const mockWallets: MultiWallet[] = [
@@ -119,6 +121,119 @@ export const useMultiWallet = (): MultiWalletContextType => {
       error: walletsError?.message || groupsError?.message || activitiesError?.message || null
     }))
   }, [walletsData, groupsData, activitiesData, walletsLoading, groupsLoading, activitiesLoading])
+
+  // Hardware Wallet Management
+  const detectHardwareWallets = useCallback(async (): Promise<any[]> => {
+    try {
+      const devices = await hardwareWalletService.detectAllDevices()
+      return devices
+    } catch (error) {
+      console.error('Hardware wallet detection error:', error)
+      return []
+    }
+  }, [])
+
+  const connectHardwareWallet = useCallback(async (
+    walletId: string, 
+    type: 'ledger' | 'trezor',
+    derivationPath?: string
+  ): Promise<void> => {
+    try {
+      await hardwareWalletService.connectDevice(type)
+      toast.success(`Connected to ${type === 'ledger' ? 'Ledger' : 'Trezor'}`)
+      
+      // Update wallet as active
+      await updateWallet(walletId, { 
+        isActive: true, 
+        lastUsedAt: new Date() 
+      })
+    } catch (error: any) {
+      toast.error(`Failed to connect: ${error.message}`)
+      throw error
+    }
+  }, [updateWallet])
+
+  const signTransactionWithHardwareWallet = useCallback(async (
+    walletId: string,
+    transactionXDR: string,
+    derivationPath?: string
+  ): Promise<string> => {
+    const wallet = state.wallets.find(w => w.id === walletId)
+    if (!wallet) {
+      throw new Error('Wallet not found')
+    }
+
+    if (wallet.type !== 'ledger' && wallet.type !== 'trezor') {
+      throw new Error('Wallet is not a hardware wallet')
+    }
+
+    try {
+      let signature: string
+
+      if (wallet.type === 'ledger') {
+        const result = await hardwareWalletService.signWithLedger(
+          transactionXDR,
+          derivationPath || STELLAR_DERIVATION_PATH
+        )
+        signature = result.signature
+      } else {
+        const result = await hardwareWalletService.signWithTrezor(
+          transactionXDR,
+          derivationPath || STELLAR_DERIVATION_PATH
+        )
+        signature = result.signature
+      }
+
+      toast.success('Transaction signed successfully')
+      return signature
+    } catch (error: any) {
+      if (error.message?.includes('User')) {
+        toast.error('Transaction signing was cancelled')
+      } else {
+        toast.error(`Signing failed: ${error.message}`)
+      }
+      throw error
+    }
+  }, [state.wallets])
+
+  const validateHardwareWalletFirmware = useCallback(async (
+    walletId: string
+  ): Promise<{ valid: boolean; version: string }> => {
+    const wallet = state.wallets.find(w => w.id === walletId)
+    if (!wallet) {
+      throw new Error('Wallet not found')
+    }
+
+    if (wallet.type !== 'ledger' && wallet.type !== 'trezor') {
+      throw new Error('Wallet is not a hardware wallet')
+    }
+
+    try {
+      const result = await hardwareWalletService.validateFirmware(wallet.type)
+      
+      if (!result.valid) {
+        toast.warning(
+          `Firmware version ${result.version} is outdated. ` +
+          `Please update to ${wallet.type === 'ledger' ? '>=1.2.0' : '>=2.4.0'}`,
+          { duration: 5000 }
+        )
+      } else {
+        toast.success(`Firmware ${result.version} is up to date`)
+      }
+
+      return result
+    } catch (error: any) {
+      toast.error(`Firmware validation failed: ${error.message}`)
+      return { valid: false, version: 'Unknown' }
+    }
+  }, [state.wallets])
+
+  // Disconnect all hardware wallets on cleanup
+  useEffect(() => {
+    return () => {
+      hardwareWalletService.disconnectAll().catch(console.error)
+    }
+  }, [])
 
   // Wallet Management
   const addWallet = useCallback(async (walletData: Omit<MultiWallet, 'id' | 'createdAt'>): Promise<string> => {
@@ -434,6 +549,11 @@ export const useMultiWallet = (): MultiWalletContextType => {
     disconnectWallet,
     refreshWallet,
     searchWallets,
-    filterWallets
+    filterWallets,
+    // Hardware wallet methods
+    detectHardwareWallets,
+    connectHardwareWallet,
+    signTransactionWithHardwareWallet,
+    validateHardwareWalletFirmware
   }
 }

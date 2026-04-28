@@ -547,7 +547,13 @@ function AddWalletForm({ onSubmit, onCancel }: { onSubmit: (wallet: Omit<MultiWa
       tags: [''],
       color: 'bg-blue-500',
       customName: '',
-      notes: ''
+      notes: '',
+      // Hardware wallet specific
+      deviceId: '',
+      firmwareVersion: '',
+      connectionType: 'usb' as const,
+      model: '',
+      derivationPath: "44'/148'/0'"
     },
     settings: {
       autoConnect: true,
@@ -568,17 +574,85 @@ function AddWalletForm({ onSubmit, onCancel }: { onSubmit: (wallet: Omit<MultiWa
       }
     }
   })
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [detectedDevices, setDetectedDevices] = useState<any[]>([])
+
+  const handleTypeChange = (type: string) => {
+    setFormData({ ...formData, type: type as any })
+    
+    // For hardware wallets, auto-detect devices
+    if (type === 'ledger' || type === 'trezor') {
+      detectHardwareDevices(type as 'ledger' | 'trezor')
+    }
+  }
+
+  const detectHardwareDevices = async (type: 'ledger' | 'trezor') => {
+    setIsDetecting(true)
+    try {
+      // In a real implementation, this would use the hardware wallet service
+      // For now, simulate detection
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      const mockDevices = type === 'ledger' 
+        ? [{ id: 'ledger-001', name: 'Ledger Nano X', model: 'Nano X' }]
+        : [{ id: 'trezor-001', name: 'Trezor Model T', model: 'Model T' }]
+      setDetectedDevices(mockDevices)
+    } catch (error) {
+      console.error('Detection failed:', error)
+      setDetectedDevices([])
+    } finally {
+      setIsDetecting(false)
+    }
+  }
+
+  const handleDeviceSelect = (device: any) => {
+    setFormData(prev => ({
+      ...prev,
+      name: device.name,
+      metadata: {
+        ...prev.metadata,
+        deviceId: device.id,
+        model: device.model
+      }
+    }))
+    // For the demo, we'll generate a deterministic public key based on device ID
+    // In production, we'd derive it from the device
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Generate public key based on wallet type
+    let publicKey: string
+    
+    if (formData.type === 'ledger' || formData.type === 'trezor') {
+      // For hardware wallets, derive deterministic key from device ID
+      const deviceSeed = formData.metadata.deviceId || formData.name
+      publicKey = generateDeterministicPublicKey(deviceSeed)
+    } else {
+      // For software wallets, use random key as before
+      publicKey = `G${Math.random().toString(16).substr(2, 55).toUpperCase()}`
+    }
+    
     onSubmit({
       ...formData,
-      publicKey: `G${Math.random().toString(16).substr(2, 55).toUpperCase()}`,
+      publicKey,
       isActive: false,
       isDefault: false,
       lastUsedAt: undefined,
       balances: []
     })
+  }
+
+  // Generate deterministic public key for hardware wallet demo
+  const generateDeterministicPublicKey = (seed: string): string => {
+    let hash = 0
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    const hex = Math.abs(hash).toString(16).padStart(64, '0')
+    return 'G' + hex.toUpperCase()
   }
 
   return (
@@ -591,6 +665,109 @@ function AddWalletForm({ onSubmit, onCancel }: { onSubmit: (wallet: Omit<MultiWa
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
+          placeholder={formData.type === 'ledger' || formData.type === 'trezor' ? 'Select a device below' : 'Enter wallet name'}
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          <select
+            value={formData.type}
+            onChange={(e) => handleTypeChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="freighter">Freighter</option>
+            <option value="albedo">Albedo</option>
+            <option value="ledger">Ledger Nano S/X</option>
+            <option value="trezor">Trezor Model T/One</option>
+            <option value="keepkey">KeepKey</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Network</label>
+          <select
+            value={formData.network}
+            onChange={(e) => setFormData({ ...formData, network: e.target.value as any })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={formData.type === 'ledger' || formData.type === 'trezor'}
+          >
+            <option value="mainnet">Mainnet</option>
+            <option value="testnet">Testnet</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Hardware Wallet Device Detection */}
+      {(formData.type === 'ledger' || formData.type === 'trezor') && (
+        <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Hardware Wallet Detection</h3>
+            <button
+              type="button"
+              onClick={() => detectHardwareDevices(formData.type)}
+              disabled={isDetecting}
+              className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50"
+            >
+              {isDetecting ? 'Scanning...' : 'Scan'}
+            </button>
+          </div>
+
+          {isDetecting ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-sm text-gray-600 mt-2">Scanning for {formData.type === 'ledger' ? 'Ledger' : 'Trezor'} devices...</p>
+            </div>
+          ) : detectedDevices.length > 0 ? (
+            <div className="space-y-2">
+              {detectedDevices.map((device) => (
+                <div
+                  key={device.id}
+                  onClick={() => handleDeviceSelect(device)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    formData.metadata.deviceId === device.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{device.name}</p>
+                      <p className="text-sm text-gray-500">{device.model}</p>
+                    </div>
+                    {formData.metadata.deviceId === device.id && (
+                      <span className="text-blue-600">✓</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-600">
+              <p className="text-sm">
+                {`No ${formData.type === 'ledger' ? 'Ledger' : 'Trezor'} devices found. Ensure:`}
+              </p>
+              <ul className="text-sm list-disc list-inside mt-1">
+                <li>Device is connected via USB</li>
+                <li>The appropriate app is open (Stellar for Ledger)</li>
+                <li>Browser has WebUSB/WebHID permissions</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea
+          value={formData.metadata.description}
+          onChange={(e) => setFormData({ 
+            ...formData, 
+            metadata: { ...formData.metadata, description: e.target.value }
+          })}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          rows={3}
         />
       </div>
       
@@ -604,6 +781,9 @@ function AddWalletForm({ onSubmit, onCancel }: { onSubmit: (wallet: Omit<MultiWa
           >
             <option value="freighter">Freighter</option>
             <option value="albedo">Albedo</option>
+            <option value="ledger">Ledger Nano S/X</option>
+            <option value="trezor">Trezor Model T/One</option>
+            <option value="keepkey">KeepKey</option>
           </select>
         </div>
         
@@ -662,12 +842,82 @@ function ImportWalletForm({ onSubmit, onCancel }: { onSubmit: (data: WalletImpor
       tags: [''],
       color: 'bg-blue-500',
       customName: ''
-    }
+    },
+    // Hardware wallet connection state
+    connectingHardware: false,
+    detectedHardware: null as any
   })
+  
+  const [isScanning, setIsScanning] = useState(false)
+
+  const handleScanForHardware = async () => {
+    setIsScanning(true)
+    try {
+      // Simulate scanning for hardware wallets
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      const mockDevices = [
+        { id: 'ledger-001', name: 'Ledger Nano X', type: 'ledger' },
+        { id: 'trezor-001', name: 'Trezor Model T', type: 'trezor' }
+      ]
+      setFormData(prev => ({ ...prev, detectedHardware: mockDevices }))
+    } catch (error) {
+      console.error('Scan failed:', error)
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleHardwareSelect = (device: any) => {
+    setFormData(prev => ({
+      ...prev,
+      connectingHardware: true
+    }))
+    
+    // Simulate connecting and deriving wallet info
+    setTimeout(() => {
+      setFormData(prev => ({
+        ...prev,
+        data: JSON.stringify({
+          type: 'hardware',
+          deviceType: device.type,
+          deviceId: device.id,
+          deviceName: device.name,
+          derivationPath: device.type === 'ledger' ? "44'/148'/0'" : "44'/148'/0'",
+          publicKey: 'G' + Math.random().toString(16).substr(2, 55).toUpperCase()
+        }),
+        source: 'hardware',
+        connectingHardware: false
+      }))
+    }, 1500)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    
+    if (formData.source === 'hardware') {
+      // For hardware import, the data should already be structured
+      // Validate that we have hardware data
+      if (!formData.data) {
+        toast.error('Please select a hardware device')
+        return
+      }
+    } else {
+      // Validate required fields for non-hardware imports
+      if (!formData.data.trim()) {
+        toast.error('Please provide the required data')
+        return
+      }
+    }
+    
+    // Clean up temp state before submitting
+    const importData: WalletImport = {
+      source: formData.source,
+      data: formData.data,
+      encryption: formData.encryption,
+      metadata: formData.metadata
+    }
+    
+    onSubmit(importData)
   }
 
   return (
@@ -676,7 +926,13 @@ function ImportWalletForm({ onSubmit, onCancel }: { onSubmit: (data: WalletImpor
         <label className="block text-sm font-medium text-gray-700 mb-1">Import Source</label>
         <select
           value={formData.source}
-          onChange={(e) => setFormData({ ...formData, source: e.target.value as any })}
+          onChange={(e) => {
+            const newSource = e.target.value as any
+            setFormData({ ...formData, source: newSource })
+            if (newSource === 'hardware') {
+              handleScanForHardware()
+            }
+          }}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="mnemonic">Mnemonic Phrase</option>
@@ -684,6 +940,87 @@ function ImportWalletForm({ onSubmit, onCancel }: { onSubmit: (data: WalletImpor
           <option value="file">JSON File</option>
           <option value="hardware">Hardware Wallet</option>
         </select>
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {formData.source === 'mnemonic' ? 'Mnemonic Phrase' : 
+           formData.source === 'private_key' ? 'Private Key' :
+           formData.source === 'file' ? 'Select File' : 'Hardware Wallet'}
+        </label>
+        
+        {formData.source === 'hardware' ? (
+          <div className="space-y-4">
+            {isScanning ? (
+              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-sm text-gray-600 mt-2">Scanning for hardware wallets...</p>
+                <p className="text-xs text-gray-500 mt-1">Connect your Ledger or Trezor device</p>
+              </div>
+            ) : formData.detectedHardware ? (
+              <div className="space-y-2">
+                {formData.detectedHardware.map((device: any) => (
+                  <div
+                    key={device.id}
+                    onClick={() => handleHardwareSelect(device)}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                      formData.connectingHardware
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                          device.type === 'ledger' ? 'bg-blue-600' : 'bg-orange-600'
+                        }`}>
+                          {device.type === 'ledger' ? 'L' : 'T'}
+                        </div>
+                        <div>
+                          <p className="font-medium">{device.name}</p>
+                          <p className="text-sm text-gray-500">{device.type === 'ledger' ? 'Nano S/X' : 'Model T/One'}</p>
+                        </div>
+                      </div>
+                      {formData.connectingHardware && (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="text-sm text-blue-600">Connecting...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                <p className="text-gray-600 mb-2">No hardware wallets detected</p>
+                <button
+                  type="button"
+                  onClick={handleScanForHardware}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Scan Again
+                </button>
+              </div>
+            )}
+          </div>
+        ) : formData.source === 'file' ? (
+          <input
+            type="file"
+            onChange={(e) => setFormData({ ...formData, data: e.target.files?.[0] || '' })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        ) : (
+          <textarea
+            value={formData.data}
+            onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows={4}
+            placeholder={formData.source === 'mnemonic' ? 'Enter your 12 or 24 word mnemonic phrase...' : 'Enter your private key...'}
+            required={formData.source !== 'hardware'}
+            disabled={formData.source === 'hardware'}
+          />
+        )}
       </div>
       
       <div>
