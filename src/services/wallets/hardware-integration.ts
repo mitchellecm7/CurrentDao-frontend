@@ -99,6 +99,53 @@ function parsePublicKey(data: Buffer): string {
 export class LedgerStellarService {
   private transport: Transport | null = null
   private devicePath: string | null = null
+  private eventListeners: Map<string, Function[]> = new Map()
+
+  constructor() {
+    this.initializeEventHandlers()
+  }
+
+  addEventListener(event: string, callback: Function): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, [])
+    }
+    this.eventListeners.get(event)!.push(callback)
+  }
+
+  removeEventListener(event: string, callback: Function): void {
+    const listeners = this.eventListeners.get(event)
+    if (listeners) {
+      const index = listeners.indexOf(callback)
+      if (index > -1) {
+        listeners.splice(index, 1)
+      }
+    }
+  }
+
+  private emitEvent(event: string, data: any): void {
+    const listeners = this.eventListeners.get(event)
+    if (listeners) {
+      listeners.forEach(callback => callback(data))
+    }
+  }
+
+  private initializeEventHandlers(): void {
+    // Handle device disconnection via WebUSB events
+    if (typeof navigator !== 'undefined' && 'usb' in navigator) {
+      navigator.usb.addEventListener('disconnect', (event: any) => {
+        const device = event.device
+        if (this.devicePath === device.deviceId) {
+          this.handleDeviceDisconnected()
+        }
+      })
+    }
+  }
+
+  private handleDeviceDisconnected(): void {
+    this.transport = null
+    this.devicePath = null
+    this.emitEvent('deviceDisconnected', this.devicePath || 'unknown')
+  }
 
   async detectDevices(): Promise<{ id: string; path: string }[]> {
     try {

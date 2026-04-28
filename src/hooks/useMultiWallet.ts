@@ -228,7 +228,44 @@ export const useMultiWallet = (): MultiWalletContextType => {
     }
   }, [state.wallets])
 
-  // Disconnect all hardware wallets on cleanup
+  // Hardware Wallet Event Listeners
+  useEffect(() => {
+    const handleDeviceDisconnected = (walletId: string) => {
+      // Find matching hardware wallet
+      const hardwareWallet = state.wallets.find(
+        w => w.metadata.deviceId === walletId || w.id === walletId
+      )
+      
+      if (hardwareWallet) {
+        // Update wallet as inactive
+        updateWallet(hardwareWallet.id, { isActive: false })
+        
+        // Add disconnection activity
+        const activity: WalletActivity = {
+          id: `activity-${Date.now()}`,
+          walletId: hardwareWallet.id,
+          type: 'disconnected',
+          description: 'Hardware wallet disconnected',
+          timestamp: new Date()
+        }
+        
+        setState(prev => ({
+          ...prev,
+          activities: [activity, ...prev.activities]
+        }))
+        
+        toast.warning(`${hardwareWallet.name} disconnected`)
+      }
+    }
+
+    hardwareWalletService.addEventListener('deviceDisconnected', handleDeviceDisconnected)
+    
+    return () => {
+      hardwareWalletService.removeEventListener('deviceDisconnected', handleDeviceDisconnected)
+    }
+  }, [state.wallets, updateWallet])
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       hardwareWalletService.disconnectAll().catch(console.error)
@@ -428,7 +465,56 @@ export const useMultiWallet = (): MultiWalletContextType => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    const walletData = importWalletFromData(importData)
+    let walletData: Omit<MultiWallet, 'id' | 'createdAt'>
+
+    if (importData.source === 'hardware') {
+      // Parse hardware wallet data
+      try {
+        const hardwareInfo = JSON.parse(importData.data as string)
+        
+        walletData = {
+          name: hardwareInfo.deviceName || `Hardware Wallet ${Date.now()}`,
+          type: hardwareInfo.deviceType as 'ledger' | 'trezor',
+          publicKey: hardwareInfo.publicKey,
+          network: 'mainnet', // Hardware wallets default to mainnet
+          isActive: false,
+          isDefault: false,
+          balances: [],
+          metadata: {
+            description: `Imported ${hardwareInfo.deviceType} device`,
+            tags: ['hardware', 'imported'],
+            color: hardwareInfo.deviceType === 'ledger' ? 'bg-blue-500' : 'bg-orange-500',
+            deviceId: hardwareInfo.deviceId,
+            derivationPath: hardwareInfo.derivationPath,
+            firmwareVersion: 'Unknown' // Will be updated on connection
+          },
+          settings: {
+            autoConnect: true,
+            showBalance: true,
+            notifications: true,
+            security: {
+              requirePassword: false,
+              sessionTimeout: 30,
+              biometricAuth: false,
+              twoFactorAuth: false,
+              whitelist: []
+            },
+            privacy: {
+              shareAnalytics: false,
+              shareUsageData: false,
+              hideZeroBalances: true,
+              privateMode: false
+            }
+          }
+        }
+      } catch (error) {
+        throw new Error('Invalid hardware wallet data format')
+      }
+    } else {
+      // Use existing import logic for software wallets
+      walletData = importWalletFromData(importData)
+    }
+    
     return await addWallet(walletData)
   }, [addWallet])
 
@@ -474,7 +560,25 @@ export const useMultiWallet = (): MultiWalletContextType => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 600))
     
-    await updateWallet(walletId, { isActive: true, lastUsedAt: new Date() })
+    const wallet = state.wallets.find(w => w.id === walletId)
+    if (!wallet) throw new Error('Wallet not found')
+    
+    // Handle hardware wallet connection
+    if (wallet.type === 'ledger' || wallet.type === 'trezor') {
+      try {
+        toast.loading(`Connecting to ${wallet.type === 'ledger' ? 'Ledger' : 'Trezor'}...`, { id: 'hardware-connect' })
+        
+        await connectHardwareWallet(walletId, wallet.type, wallet.metadata.derivationPath)
+        
+        toast.success(`Connected to ${wallet.name}`, { id: 'hardware-connect' })
+      } catch (error: any) {
+        toast.error(`Failed to connect: ${error.message}`, { id: 'hardware-connect' })
+        throw error
+      }
+    } else {
+      // Software wallet connection
+      await updateWallet(walletId, { isActive: true, lastUsedAt: new Date() })
+    }
     
     // Add activity
     const activity: WalletActivity = {
@@ -489,9 +593,22 @@ export const useMultiWallet = (): MultiWalletContextType => {
       ...prev,
       activities: [activity, ...prev.activities]
     }))
-  }, [updateWallet])
+  }, [updateWallet, connectHardwareWallet, state.wallets])
 
   const disconnectWallet = useCallback(async (walletId: string): Promise<void> => {
+    const wallet = state.wallets.find(w => w.id === walletId)
+    if (!wallet) return
+
+    // For hardware wallets, disconnect from device
+    if (wallet.type === 'ledger' || wallet.type === 'trezor') {
+      try {
+        await hardwareWalletService.disconnectAll()
+        toast.success(`Disconnected from ${wallet.name}`)
+      } catch (error: any) {
+        console.error('Hardware disconnection error:', error)
+      }
+    }
+
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 400))
     
@@ -510,7 +627,7 @@ export const useMultiWallet = (): MultiWalletContextType => {
       ...prev,
       activities: [activity, ...prev.activities]
     }))
-  }, [updateWallet])
+  }, [updateWallet, state.wallets])
 
   const refreshWallet = useCallback(async (walletId: string): Promise<void> => {
     // Simulate API call

@@ -282,18 +282,71 @@ export default function MultiWalletPage() {
                       </span>
                     </div>
                     
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Status</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        wallet.isActive 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {wallet.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
+                     <div className="flex items-center justify-between">
+                       <span className="text-sm text-gray-600">Status</span>
+                       <span className={`px-2 py-1 rounded-full text-xs ${
+                         wallet.isActive 
+                           ? 'bg-green-100 text-green-800' 
+                           : 'bg-gray-100 text-gray-800'
+                       }`}>
+                         {wallet.isActive ? 'Active' : 'Inactive'}
+                       </span>
+                     </div>
+                     
+                     {wallet.isActive && (wallet.type === 'ledger' || wallet.type === 'trezor') && (
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600">Device</span>
+                         <div className="flex items-center space-x-2">
+                           <span className="flex items-center text-xs text-green-600">
+                             <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                             Connected
+                           </span>
+                           {wallet.metadata.model && (
+                             <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded">
+                               {wallet.metadata.model}
+                             </span>
+                           )}
+                           {wallet.metadata.connectionType && (
+                             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded uppercase">
+                               {wallet.metadata.connectionType}
+                             </span>
+                           )}
+                         </div>
+                       </div>
+                     )}
+                     
+                     {wallet.isActive && (wallet.type === 'ledger' || wallet.type === 'trezor') && wallet.metadata.firmwareVersion && (
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600">Firmware</span>
+                         <div className="flex items-center space-x-2">
+                           <span className="text-sm text-gray-700">{wallet.metadata.firmwareVersion}</span>
+                           <button
+                             onClick={async () => {
+                               try {
+                                 toast.loading('Validating firmware...', { id: `fw-${wallet.id}` })
+                                 const result = await validateHardwareWalletFirmware(wallet.id)
+                                 if (result.valid) {
+                                   toast.success(`Firmware ${result.version} is valid`, { id: `fw-${wallet.id}` })
+                                 } else {
+                                   toast.warning(
+                                     `Firmware ${result.version} may be outdated. Please update your device.`,
+                                     { id: `fw-${wallet.id}`, duration: 5000 }
+                                   )
+                                 }
+                               } catch (error: any) {
+                                 toast.error(`Validation failed: ${error.message}`, { id: `fw-${wallet.id}` })
+                               }
+                             }}
+                             className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                           >
+                             <Shield className="w-3 h-3 mr-1" />
+                             Validate
+                           </button>
+                         </div>
+                       </div>
+                     )}
+                     
+                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Balance</span>
                       <div className="flex items-center">
                         <button
