@@ -26,6 +26,8 @@ export default function ProfilePage() {
     enableTwoFactor, 
     disableTwoFactor, 
     revokeSession, 
+    revokeAllSessions,
+    signInWithStellar,
     revokeApiKey, 
     createApiKey, 
     refreshProfile 
@@ -241,6 +243,7 @@ export default function ProfilePage() {
                 enabled ? enableTwoFactor(method || 'authenticator') : disableTwoFactor()
               }
               onSessionRevoke={revokeSession}
+              onRevokeAllSessions={revokeAllSessions}
               onApiKeyRevoke={revokeApiKey}
               onApiKeyCreate={createApiKey}
               isLoading={state.isUpdating}
