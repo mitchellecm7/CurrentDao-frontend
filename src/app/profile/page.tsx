@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { User, Settings, Bell, Shield, Upload, ArrowLeft } from 'lucide-react';
+import { Save, User, Mail, Globe, MapPin, Calendar, Languages, DollarSign, Shield, Eye, EyeOff, AlertTriangle, Plus, ArrowLeft } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { AccountSettings } from '@/components/profile/AccountSettings';
@@ -9,8 +9,9 @@ import { TradingPreferences } from '@/components/profile/TradingPreferences';
 import { NotificationSettings } from '@/components/profile/NotificationSettings';
 import { SecuritySettings } from '@/components/profile/SecuritySettings';
 import { AvatarUpload } from '@/components/profile/AvatarUpload';
+import { SettingsManager } from '@/components/profile/SettingsManager';
 
-type TabType = 'overview' | 'account' | 'trading' | 'notifications' | 'security';
+type TabType = 'overview' | 'account' | 'trading' | 'notifications' | 'security' | 'settings-manager';
 
 export default function ProfilePage() {
   const { 
@@ -35,10 +36,11 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: User },
-    { id: 'account', label: 'Account Settings', icon: Settings },
-    { id: 'trading', label: 'Trading Preferences', icon: Upload },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'account', label: 'Account Settings', icon: Save },
+    { id: 'trading', label: 'Trading Preferences', icon: Plus },
+    { id: 'notifications', label: 'Notifications', icon: Mail },
     { id: 'security', label: 'Security', icon: Shield },
+    { id: 'settings-manager', label: 'Import/Export', icon: Globe },
   ] as const;
 
   const handleEditProfile = () => {
@@ -105,7 +107,7 @@ export default function ProfilePage() {
               onClick={() => window.history.back()}
               className="flex items-center space-x-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <span>↩️</span>
               <span>Back</span>
             </button>
           </div>
@@ -155,7 +157,7 @@ export default function ProfilePage() {
                     onClick={() => setShowAvatarUpload(true)}
                     className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
                   >
-                    <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-2" />
+                    <span>⬆️</span>
                     <p className="font-medium text-gray-900 dark:text-white">Update Avatar</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Change profile picture</p>
                   </button>
@@ -164,7 +166,7 @@ export default function ProfilePage() {
                     onClick={() => setActiveTab('account')}
                     className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
                   >
-                    <Settings className="w-6 h-6 text-green-600 dark:text-green-400 mb-2" />
+                    <Settings><span>⬆️</span>
                     <p className="font-medium text-gray-900 dark:text-white">Edit Profile</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Update personal info</p>
                   </button>
@@ -173,7 +175,7 @@ export default function ProfilePage() {
                     onClick={() => setActiveTab('trading')}
                     className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
                   >
-                    <Upload className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-2" />
+                    <span>⬆️</span>
                     <p className="font-medium text-gray-900 dark:text-white">Trading Settings</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Configure preferences</p>
                   </button>
@@ -244,6 +246,25 @@ export default function ProfilePage() {
               isLoading={state.isUpdating}
             />
           )}
+
+          {/* Settings Manager Tab */}
+          {activeTab === 'settings-manager' && state.accountSettings && state.tradingPreferences && state.notificationPreferences && (
+            <SettingsManager
+              accountSettings={state.accountSettings}
+              tradingPreferences={state.tradingPreferences}
+              notificationPreferences={state.notificationPreferences}
+              onSettingsUpdate={(
+                accountSettings,
+                tradingPreferences,
+                notificationPreferences
+              ) => {
+                if (accountSettings) updateAccountSettings(accountSettings);
+                if (tradingPreferences) updateTradingPreferences(tradingPreferences);
+                if (notificationPreferences) updateNotificationPreferences(notificationPreferences);
+              }}
+              isLoading={state.isUpdating}
+            />
+          )}
         </div>
 
         {/* Avatar Upload Modal */}
@@ -263,9 +284,9 @@ export default function ProfilePage() {
               </div>
               <AvatarUpload
                 currentAvatar={state.profile?.avatar}
-                onUpload={async (file) => {
+                onUpload={async (file: File) => {
                   try {
-                    await handleAvatarUpload(file);
+                    const url = await handleAvatarUpload(file);
                     setShowAvatarUpload(false);
                   } catch (error) {
                     console.error('Avatar upload failed:', error);
