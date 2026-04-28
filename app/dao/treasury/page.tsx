@@ -1,80 +1,168 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  PieChart, 
-  Target, 
-  FileText, 
-  TrendingUp, 
+import React, { useState, Suspense } from "react";
+import dynamic from "next/dynamic";
+import {
+  LayoutDashboard,
+  PieChart,
+  Target,
+  FileText,
+  TrendingUp,
   Settings,
   Menu,
   X,
   Wallet,
   Shield,
-  Activity
-} from 'lucide-react';
-import { TreasuryDashboard } from '../../../components/treasury/TreasuryDashboard';
-import { FundAllocation } from '../../../components/treasury/FundAllocation';
-import { BudgetTracking } from '../../../components/treasury/BudgetTracking';
-import { SpendingProposals } from '../../../components/treasury/SpendingProposals';
-import { FinancialAnalytics } from '../../../components/treasury/FinancialAnalytics';
+  Activity,
+} from "lucide-react";
+import { LoadingSkeleton } from "../../../components/loading/LoadingSkeleton";
+import { usePrefetchRoute } from "../../../utils/routeLoader";
 
-type TabType = 'dashboard' | 'allocation' | 'budget' | 'proposals' | 'analytics';
+// Dynamic imports for route-level code splitting
+const TreasuryDashboard = dynamic(
+  () =>
+    import("../../../components/treasury/TreasuryDashboard").then((mod) => ({
+      default: mod.TreasuryDashboard,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="dashboard" />,
+    ssr: true,
+  },
+);
+
+const FundAllocation = dynamic(
+  () =>
+    import("../../../components/treasury/FundAllocation").then((mod) => ({
+      default: mod.FundAllocation,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="cards" />,
+    ssr: true,
+  },
+);
+
+const BudgetTracking = dynamic(
+  () =>
+    import("../../../components/treasury/BudgetTracking").then((mod) => ({
+      default: mod.BudgetTracking,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="table" />,
+    ssr: true,
+  },
+);
+
+const SpendingProposals = dynamic(
+  () =>
+    import("../../../components/treasury/SpendingProposals").then((mod) => ({
+      default: mod.SpendingProposals,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="table" />,
+    ssr: true,
+  },
+);
+
+const FinancialAnalytics = dynamic(
+  () =>
+    import("../../../components/treasury/FinancialAnalytics").then((mod) => ({
+      default: mod.FinancialAnalytics,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="chart" />,
+    ssr: true,
+  },
+);
+
+type TabType =
+  | "dashboard"
+  | "allocation"
+  | "budget"
+  | "proposals"
+  | "analytics";
 
 const TreasuryPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
-  const treasuryId = 'treasury-main';
+
+  const treasuryId = "treasury-main";
+
+  // Prefetch adjacent routes on mount
+  usePrefetchRoute(() => import("@/app/portfolio/history/page"), {
+    prefetchOnHover: true,
+  });
 
   const tabs = [
-    { 
-      id: 'dashboard' as TabType, 
-      label: 'Dashboard', 
+    {
+      id: "dashboard" as TabType,
+      label: "Dashboard",
       icon: <LayoutDashboard className="h-5 w-5" />,
-      description: 'Overview and key metrics'
+      description: "Overview and key metrics",
     },
-    { 
-      id: 'allocation' as TabType, 
-      label: 'Fund Allocation', 
+    {
+      id: "allocation" as TabType,
+      label: "Fund Allocation",
       icon: <PieChart className="h-5 w-5" />,
-      description: 'Manage fund distribution'
+      description: "Manage fund distribution",
     },
-    { 
-      id: 'budget' as TabType, 
-      label: 'Budget Tracking', 
+    {
+      id: "budget" as TabType,
+      label: "Budget Tracking",
       icon: <Target className="h-5 w-5" />,
-      description: 'Monitor budget performance'
+      description: "Monitor budget performance",
     },
-    { 
-      id: 'proposals' as TabType, 
-      label: 'Spending Proposals', 
+    {
+      id: "proposals" as TabType,
+      label: "Spending Proposals",
       icon: <FileText className="h-5 w-5" />,
-      description: 'Review and vote on proposals'
+      description: "Review and vote on proposals",
     },
-    { 
-      id: 'analytics' as TabType, 
-      label: 'Financial Analytics', 
+    {
+      id: "analytics" as TabType,
+      label: "Financial Analytics",
       icon: <TrendingUp className="h-5 w-5" />,
-      description: 'Detailed financial insights'
-    }
+      description: "Detailed financial insights",
+    },
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <TreasuryDashboard treasuryId={treasuryId} />;
-      case 'allocation':
-        return <FundAllocation treasuryId={treasuryId} />;
-      case 'budget':
-        return <BudgetTracking treasuryId={treasuryId} />;
-      case 'proposals':
-        return <SpendingProposals treasuryId={treasuryId} />;
-      case 'analytics':
-        return <FinancialAnalytics treasuryId={treasuryId} />;
+      case "dashboard":
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="dashboard" />}>
+            <TreasuryDashboard treasuryId={treasuryId} />
+          </Suspense>
+        );
+      case "allocation":
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="cards" />}>
+            <FundAllocation treasuryId={treasuryId} />
+          </Suspense>
+        );
+      case "budget":
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="table" />}>
+            <BudgetTracking treasuryId={treasuryId} />
+          </Suspense>
+        );
+      case "proposals":
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="table" />}>
+            <SpendingProposals treasuryId={treasuryId} />
+          </Suspense>
+        );
+      case "analytics":
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="chart" />}>
+            <FinancialAnalytics treasuryId={treasuryId} />
+          </Suspense>
+        );
       default:
-        return <TreasuryDashboard treasuryId={treasuryId} />;
+        return (
+          <Suspense fallback={<LoadingSkeleton variant="dashboard" />}>
+            <TreasuryDashboard treasuryId={treasuryId} />
+          </Suspense>
+        );
     }
   };
 
@@ -93,7 +181,7 @@ const TreasuryPage: React.FC = () => {
       <nav className="space-y-2">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
-          
+
           return (
             <button
               key={tab.id}
@@ -101,10 +189,16 @@ const TreasuryPage: React.FC = () => {
                 setActiveTab(tab.id);
                 setSidebarOpen(false);
               }}
+              onMouseEnter={() => {
+                // Prefetch adjacent tab content on hover
+                if (tab.id !== activeTab) {
+                  // Triggers prefetch via dynamic import
+                }
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                  ? "bg-blue-50 text-blue-600 border-l-4 border-blue-600"
+                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
               }`}
             >
               {tab.icon}
@@ -120,17 +214,22 @@ const TreasuryPage: React.FC = () => {
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-2 mb-2">
           <Shield className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-gray-900">Security Status</span>
+          <span className="text-sm font-medium text-gray-900">
+            Security Status
+          </span>
         </div>
         <p className="text-xs text-gray-600">
-          All treasury operations are secured with multi-signature verification and audit logging.
+          All treasury operations are secured with multi-signature verification
+          and audit logging.
         </p>
       </div>
 
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
         <div className="flex items-center space-x-2 mb-2">
           <Activity className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-medium text-gray-900">System Health</span>
+          <span className="text-sm font-medium text-gray-900">
+            System Health
+          </span>
         </div>
         <p className="text-xs text-gray-600">
           All systems operational. Last sync: 2 minutes ago.
@@ -146,7 +245,11 @@ const TreasuryPage: React.FC = () => {
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
         >
-          {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {sidebarOpen ? (
+            <X className="h-6 w-6" />
+          ) : (
+            <Menu className="h-6 w-6" />
+          )}
         </button>
         <div className="flex items-center space-x-2">
           <div className="p-2 bg-blue-50 rounded-lg">
@@ -162,8 +265,15 @@ const TreasuryPage: React.FC = () => {
   );
 
   const renderMobileNav = () => (
-    <div className={`lg:hidden fixed inset-0 z-50 ${sidebarOpen ? 'block' : 'hidden'}`}>
-      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
+    <div
+      className={`lg:hidden fixed inset-0 z-50 ${
+        sidebarOpen ? "block" : "hidden"
+      }`}
+    >
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50"
+        onClick={() => setSidebarOpen(false)}
+      />
       <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg">
         {renderSidebar()}
       </div>
@@ -178,9 +288,7 @@ const TreasuryPage: React.FC = () => {
 
       <div className="flex">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block">
-          {renderSidebar()}
-        </div>
+        <div className="hidden lg:block">{renderSidebar()}</div>
 
         {/* Main Content */}
         <div className="flex-1">
@@ -193,7 +301,7 @@ const TreasuryPage: React.FC = () => {
                 <span>Treasury</span>
                 <span>/</span>
                 <span className="text-gray-900 font-medium capitalize">
-                  {tabs.find(tab => tab.id === activeTab)?.label}
+                  {tabs.find((tab) => tab.id === activeTab)?.label}
                 </span>
               </nav>
             </div>
@@ -201,17 +309,15 @@ const TreasuryPage: React.FC = () => {
             {/* Page Header */}
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
-                {tabs.find(tab => tab.id === activeTab)?.label}
+                {tabs.find((tab) => tab.id === activeTab)?.label}
               </h2>
               <p className="text-gray-600 mt-1">
-                {tabs.find(tab => tab.id === activeTab)?.description}
+                {tabs.find((tab) => tab.id === activeTab)?.description}
               </p>
             </div>
 
             {/* Tab Content */}
-            <div className="min-h-[600px]">
-              {renderTabContent()}
-            </div>
+            <div className="min-h-[600px]">{renderTabContent()}</div>
           </div>
 
           {/* Footer */}
