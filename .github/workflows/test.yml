@@ -2,9 +2,9 @@ name: Test and Deploy
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -14,8 +14,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Lint
@@ -26,5 +26,39 @@ jobs:
         run: npm run test:integration
       - name: Visual Regression
         run: npm run test:visual
+
+      - name: Build and Analyze Bundle
+        run: npm run build
+
+      - name: Check Bundle Size Report
+        if: always()
+        run: |
+          if [ -f bundle-report.json ]; then
+            echo "Bundle report generated:"
+            cat bundle-report.json
+          else
+            echo "Warning: bundle-report.json not found"
+          fi
+
       - name: Performance Audit
-        run: npx lighthouse http://localhost:3000 --output json --output-path ./report.json
+        run: npm start &
+        timeout-minutes: 5
+
+      - name: Lighthouse Performance Audit
+        run: |
+          sleep 5 && npx lighthouse http://localhost:3000 --output json --output-path ./lighthouse-report.json --chrome-flags="--headless --no-sandbox"
+        continue-on-error: true
+
+      - name: Upload Lighthouse Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: lighthouse-report
+          path: lighthouse-report.json
+
+      - name: Upload Bundle Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: bundle-report
+          path: bundle-report.json

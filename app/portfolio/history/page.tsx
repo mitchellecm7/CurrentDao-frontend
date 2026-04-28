@@ -1,44 +1,109 @@
-import React, { useState, useEffect } from 'react';
-import { usePortfolioAnalytics } from '../../../hooks/usePortfolioAnalytics';
-import { LazyComponent, LazyPortfolioMetrics, LazyTradingHistory } from '../../../components/lazy/LazyComponent';
-import { ProfitLoss } from '../../../components/portfolio/ProfitLoss';
-import { AssetAllocation } from '../../../components/portfolio/AssetAllocation';
-import { TradingStatistics } from '../../../components/portfolio/TradingStatistics';
-import { ExportOptions } from '../../../types/portfolio';
-import { performanceMonitor } from '../../../utils/performance/monitoring';
-import { portfolioApiCache } from '../../../services/cache/api-cache';
+"use client";
+
+import React, { useState, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
+import { usePortfolioAnalytics } from "../../../hooks/usePortfolioAnalytics";
+import {
+  LazyComponent,
+  LazyPortfolioMetrics,
+  LazyTradingHistory,
+} from "../../../components/lazy/LazyComponent";
+import { LoadingSkeleton } from "../../../components/loading/LoadingSkeleton";
+import { ExportOptions } from "../../../types/portfolio";
+import { performanceMonitor } from "../../../utils/performance/monitoring";
+import { portfolioApiCache } from "../../../services/cache/api-cache";
+import { usePrefetchRoute } from "../../../utils/routeLoader";
+
+// Dynamic imports for route-level code splitting
+const ProfitLoss = dynamic(
+  () =>
+    import("../../../components/portfolio/ProfitLoss").then((mod) => ({
+      default: mod.ProfitLoss,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="chart" />,
+    ssr: true,
+  },
+);
+
+const AssetAllocation = dynamic(
+  () =>
+    import("../../../components/portfolio/AssetAllocation").then((mod) => ({
+      default: mod.AssetAllocation,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="chart" />,
+    ssr: true,
+  },
+);
+
+const TradingStatistics = dynamic(
+  () =>
+    import("../../../components/portfolio/TradingStatistics").then((mod) => ({
+      default: mod.TradingStatistics,
+    })),
+  {
+    loading: () => <LoadingSkeleton variant="table" />,
+    ssr: true,
+  },
+);
 
 export default function PortfolioHistoryPage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'metrics' | 'pnl' | 'allocation' | 'statistics'>('overview');
-  const [dateRange, setDateRange] = useState<'1m' | '3m' | '6m' | '1y' | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "history" | "metrics" | "pnl" | "allocation" | "statistics"
+  >("overview");
+  const [dateRange, setDateRange] = useState<"1m" | "3m" | "6m" | "1y" | "all">(
+    "all",
+  );
   const [isExporting, setIsExporting] = useState(false);
 
-  const { analytics, loading, error, trades, portfolio, performance, profitLoss, allocation, statistics, exportData, refreshData, addTrade, updateTrade, deleteTrade } = usePortfolioAnalytics({
+  const {
+    analytics,
+    loading,
+    error,
+    trades,
+    portfolio,
+    performance,
+    profitLoss,
+    allocation,
+    statistics,
+    exportData,
+    refreshData,
+    addTrade,
+    updateTrade,
+    deleteTrade,
+  } = usePortfolioAnalytics({
     autoRefresh: true,
-    refreshInterval: 30000
+    refreshInterval: 30000,
+  });
+
+  // Prefetch adjacent routes on mount
+  usePrefetchRoute(() => import("@/app/dao/treasury/page"), {
+    prefetchOnHover: true,
   });
 
   // Performance monitoring
   useEffect(() => {
     // Prefetch data for better performance
     if (portfolio) {
-      portfolioApiCache.prefetchPortfolioData('default');
+      portfolioApiCache.prefetchPortfolioData("default");
     }
 
     // Track page load performance
-    const endMeasure = performanceMonitor['recordCustomMetric'].bind(performanceMonitor);
-    const measureId = 'portfolio-page-load';
+    const endMeasure =
+      performanceMonitor["recordCustomMetric"].bind(performanceMonitor);
+    const measureId = "portfolio-page-load";
     endMeasure(measureId, Date.now() - performance.now());
   }, [portfolio]);
 
   // Invalidate cache when trades are updated
   useEffect(() => {
     if (trades && trades.length > 0) {
-      portfolioApiCache.invalidatePattern('/api/portfolio/');
+      portfolioApiCache.invalidatePattern("/api/portfolio/");
     }
   }, [trades]);
 
-  const handleExport = async (format: 'csv' | 'pdf' | 'json' | 'excel') => {
+  const handleExport = async (format: "csv" | "pdf" | "json" | "excel") => {
     if (!analytics) return;
 
     setIsExporting(true);
@@ -46,62 +111,76 @@ export default function PortfolioHistoryPage() {
       const exportOptions: ExportOptions = {
         format,
         dateRange: {
-          start: dateRange === 'all' ? new Date('2020-01-01') : new Date(Date.now() - (dateRange === '1m' ? 30 : dateRange === '3m' ? 90 : dateRange === '6m' ? 180 : 365) * 24 * 60 * 60 * 1000),
-          end: new Date()
+          start:
+            dateRange === "all"
+              ? new Date("2020-01-01")
+              : new Date(
+                  Date.now() -
+                    (dateRange === "1m"
+                      ? 30
+                      : dateRange === "3m"
+                      ? 90
+                      : dateRange === "6m"
+                      ? 180
+                      : 365) *
+                      24 *
+                      60 *
+                      60 *
+                      1000,
+                ),
+          end: new Date(),
         },
-        includeMetrics: ['performance', 'allocation', 'pnl', 'statistics'],
-        includeCharts: true
+        includeMetrics: ["performance", "allocation", "pnl", "statistics"],
+        includeCharts: true,
       };
 
       const data = await exportData(exportOptions);
-      
-      const blob = new Blob([data], { 
-        type: format === 'json' ? 'application/json' : 
-              format === 'csv' ? 'text/csv' : 
-              format === 'pdf' ? 'application/pdf' : 
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+      const blob = new Blob([data], {
+        type:
+          format === "json"
+            ? "application/json"
+            : format === "csv"
+            ? "text/csv"
+            : format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      
+
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `portfolio-analytics-${new Date().toISOString().split('T')[0]}.${format}`;
+      a.download = `portfolio-analytics-${
+        new Date().toISOString().split("T")[0]
+      }.${format}`;
       a.click();
       URL.revokeObjectURL(url);
-      
     } catch (err) {
-      console.error('Export failed:', err);
+      console.error("Export failed:", err);
     } finally {
       setIsExporting(false);
     }
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'history', label: 'Trading History', icon: '📈' },
-    { id: 'metrics', label: 'Performance', icon: '🎯' },
-    { id: 'pnl', label: 'P&L Analysis', icon: '💰' },
-    { id: 'allocation', label: 'Allocation', icon: '🎨' },
-    { id: 'statistics', label: 'Statistics', icon: '📋' }
+    { id: "overview", label: "Overview", icon: "📊" },
+    { id: "history", label: "Trading History", icon: "📈" },
+    { id: "metrics", label: "Performance", icon: "🎯" },
+    { id: "pnl", label: "P&L Analysis", icon: "💰" },
+    { id: "allocation", label: "Allocation", icon: "🎨" },
+    { id: "statistics", label: "Statistics", icon: "📋" },
   ];
 
   const dateRanges = [
-    { id: '1m', label: '1 Month' },
-    { id: '3m', label: '3 Months' },
-    { id: '6m', label: '6 Months' },
-    { id: '1y', label: '1 Year' },
-    { id: 'all', label: 'All Time' }
+    { id: "1m", label: "1 Month" },
+    { id: "3m", label: "3 Months" },
+    { id: "6m", label: "6 Months" },
+    { id: "1y", label: "1 Year" },
+    { id: "all", label: "All Time" },
   ];
 
   if (loading && !analytics) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading portfolio analytics...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton variant="dashboard" />;
   }
 
   if (error) {
@@ -109,7 +188,9 @@ export default function PortfolioHistoryPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-600 mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Data</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Error Loading Data
+          </h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button
             onClick={refreshData}
@@ -129,20 +210,33 @@ export default function PortfolioHistoryPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-semibold text-gray-900">Portfolio Analytics</h1>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Portfolio Analytics
+              </h1>
               {portfolio && (
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <span>Total Value:</span>
                   <span className="font-semibold text-gray-900">
-                    ${portfolio.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    $
+                    {portfolio.totalValue.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
-                  <span className={`ml-2 ${portfolio.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ({portfolio.totalProfit >= 0 ? '+' : ''}{portfolio.totalProfitPercentage.toFixed(2)}%)
+                  <span
+                    className={`ml-2 ${
+                      portfolio.totalProfit >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    ({portfolio.totalProfit >= 0 ? "+" : ""}
+                    {portfolio.totalProfitPercentage.toFixed(2)}%)
                   </span>
                 </div>
               )}
             </div>
-            
+
             <div className="flex items-center space-x-4">
               {/* Date Range Selector */}
               <div className="flex items-center space-x-2">
@@ -152,8 +246,10 @@ export default function PortfolioHistoryPage() {
                   onChange={(e) => setDateRange(e.target.value as any)}
                   className="text-sm border border-gray-300 rounded-md px-3 py-1"
                 >
-                  {dateRanges.map(range => (
-                    <option key={range.id} value={range.id}>{range.label}</option>
+                  {dateRanges.map((range) => (
+                    <option key={range.id} value={range.id}>
+                      {range.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -165,21 +261,23 @@ export default function PortfolioHistoryPage() {
                   className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   <span>📤</span>
-                  <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+                  <span>{isExporting ? "Exporting..." : "Export"}</span>
                 </button>
-                
+
                 {isExporting && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
                     <div className="py-1">
-                      {(['csv', 'pdf', 'json', 'excel'] as const).map(format => (
-                        <button
-                          key={format}
-                          onClick={() => handleExport(format)}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          Export as {format.toUpperCase()}
-                        </button>
-                      ))}
+                      {(["csv", "pdf", "json", "excel"] as const).map(
+                        (format) => (
+                          <button
+                            key={format}
+                            onClick={() => handleExport(format)}
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            Export as {format.toUpperCase()}
+                          </button>
+                        ),
+                      )}
                     </div>
                   </div>
                 )}
@@ -202,14 +300,14 @@ export default function PortfolioHistoryPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
-            {tabs.map(tab => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <span>{tab.icon}</span>
@@ -222,37 +320,70 @@ export default function PortfolioHistoryPage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <div className="space-y-8">
             {/* Summary Cards */}
             {portfolio && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Total Value</div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">
+                    Total Value
+                  </div>
                   <div className="text-2xl font-bold text-gray-900">
-                    ${portfolio.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    $
+                    {portfolio.totalValue.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </div>
-                  <div className={`text-sm mt-1 ${portfolio.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {portfolio.totalProfit >= 0 ? '+' : ''}{portfolio.totalProfitPercentage.toFixed(2)}%
+                  <div
+                    className={`text-sm mt-1 ${
+                      portfolio.totalProfit >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {portfolio.totalProfit >= 0 ? "+" : ""}
+                    {portfolio.totalProfitPercentage.toFixed(2)}%
                   </div>
                 </div>
-                
+
                 <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Total Investment</div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">
+                    Total Investment
+                  </div>
                   <div className="text-2xl font-bold text-gray-900">
-                    ${portfolio.totalInvestment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    $
+                    {portfolio.totalInvestment.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </div>
                 </div>
-                
+
                 <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Total Profit</div>
-                  <div className={`text-2xl font-bold ${portfolio.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ${portfolio.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div className="text-sm font-medium text-gray-600 mb-1">
+                    Total Profit
+                  </div>
+                  <div
+                    className={`text-2xl font-bold ${
+                      portfolio.totalProfit >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    $
+                    {portfolio.totalProfit.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </div>
                 </div>
-                
+
                 <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Assets</div>
+                  <div className="text-sm font-medium text-gray-600 mb-1">
+                    Assets
+                  </div>
                   <div className="text-2xl font-bold text-gray-900">
                     {portfolio.assets.length}
                   </div>
@@ -263,8 +394,14 @@ export default function PortfolioHistoryPage() {
             {/* Performance Metrics */}
             {performance && (
               <LazyComponent
-                loader={() => import('../../../components/portfolio/PerformanceMetrics').then(module => ({ default: module.PerformanceMetrics }))}
-                fallback={<div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>}
+                loader={() =>
+                  import(
+                    "../../../components/portfolio/PerformanceMetrics"
+                  ).then((module) => ({ default: module.PerformanceMetrics }))
+                }
+                fallback={
+                  <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
+                }
               >
                 <LazyPortfolioMetrics metrics={performance} />
               </LazyComponent>
@@ -272,10 +409,16 @@ export default function PortfolioHistoryPage() {
           </div>
         )}
 
-        {activeTab === 'history' && (
+        {activeTab === "history" && (
           <LazyComponent
-            loader={() => import('../../../components/portfolio/TradingHistory').then(module => ({ default: module.TradingHistory }))}
-            fallback={<div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>}
+            loader={() =>
+              import("../../../components/portfolio/TradingHistory").then(
+                (module) => ({ default: module.TradingHistory }),
+              )
+            }
+            fallback={
+              <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
+            }
           >
             <LazyTradingHistory
               trades={trades}
@@ -287,27 +430,28 @@ export default function PortfolioHistoryPage() {
           </LazyComponent>
         )}
 
-        {activeTab === 'metrics' && performance && (
+        {activeTab === "metrics" && performance && (
           <LazyComponent
-            loader={() => import('../../../components/portfolio/PerformanceMetrics').then(module => ({ default: module.PerformanceMetrics }))}
-            fallback={<div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>}
+            loader={() =>
+              import("../../../components/portfolio/PerformanceMetrics").then(
+                (module) => ({ default: module.PerformanceMetrics }),
+              )
+            }
+            fallback={
+              <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
+            }
           >
             <LazyPortfolioMetrics metrics={performance} />
           </LazyComponent>
         )}
 
-        {activeTab === 'pnl' && profitLoss && (
-          <ProfitLoss data={profitLoss} />
+        {activeTab === "pnl" && profitLoss && <ProfitLoss data={profitLoss} />}
+
+        {activeTab === "allocation" && allocation && portfolio && (
+          <AssetAllocation allocation={allocation} portfolio={portfolio} />
         )}
 
-        {activeTab === 'allocation' && allocation && portfolio && (
-          <AssetAllocation
-            allocation={allocation}
-            portfolio={portfolio}
-          />
-        )}
-
-        {activeTab === 'statistics' && statistics && (
+        {activeTab === "statistics" && statistics && (
           <TradingStatistics statistics={statistics} />
         )}
       </div>
