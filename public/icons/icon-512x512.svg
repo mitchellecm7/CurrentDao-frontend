@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="64" fill="#2563eb"/>
+  <path d="M256 128C321 128 374 181 374 246C374 311 321 364 256 364C191 364 138 311 138 246C138 181 191 128 256 128Z" fill="white"/>
+  <path d="M256 171C298 171 332 205 332 247C332 289 298 323 256 323C214 323 180 289 180 247C180 205 214 171 256 171Z" fill="#2563eb"/>
+  <path d="M256 203C281 203 302 224 302 249C302 274 281 295 256 295C231 295 210 274 210 249C210 224 231 203 256 203Z" fill="white"/>
+  <text x="256" y="387" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">DAO</text>
+</svg>
